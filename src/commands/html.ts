@@ -84,6 +84,11 @@ nav ul { list-style: none; margin: 0; padding: 0; }
 nav li { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: 14px; }
 nav li.group { font-weight: 600; margin-top: 12px; break-after: avoid; }
 nav li.child { padding-left: 12px; }
+/* 読んでいる章とその親を、左の縦線と色で示す */
+nav li { border-left: 2px solid transparent; margin-left: -8px; padding-left: 6px; }
+nav li.child { padding-left: 18px; }
+nav li.active { border-left-color: var(--accent); }
+nav li.active > a, nav li.group.active { color: var(--accent); }
 nav a { color: var(--text); text-decoration: none; }
 nav a:hover { color: var(--accent); }
 .count { color: var(--muted); font-size: 12px; font-weight: normal; }
@@ -149,6 +154,37 @@ var io = new IntersectionObserver(function (entries) {
   });
 }, { rootMargin: "600px" });
 document.querySelectorAll(".tweet").forEach(function (el) { io.observe(el); });
+// 読んでいる章（画面の上端に一番近い章）を左の一覧で強調し、一覧もそこまで送る
+var sections = Array.from(document.querySelectorAll("main section"));
+var navItems = Array.from(document.querySelectorAll("nav li"));
+var activeId = null;
+function updateActive() {
+  var current = null;
+  for (var i = 0; i < sections.length; i++) {
+    if (sections[i].getBoundingClientRect().top <= 120) current = sections[i]; else break;
+  }
+  if (!current && sections.length > 0) current = sections[0];
+  if (!current || current.id === activeId) return;
+  activeId = current.id;
+  var link = document.querySelector('nav a[href="#' + current.id + '"]');
+  navItems.forEach(function (li) { li.classList.remove("active"); });
+  if (!link) return;
+  var item = link.parentElement;
+  item.classList.add("active");
+  // 親グループは、その項目より前にある一番近い group
+  for (var p = item.previousElementSibling; p; p = p.previousElementSibling) {
+    if (p.classList.contains("group")) { p.classList.add("active"); break; }
+  }
+  if (typeof item.scrollIntoView === "function") item.scrollIntoView({ block: "nearest" });
+}
+var ticking = false;
+addEventListener("scroll", function () {
+  if (ticking) return;
+  ticking = true;
+  requestAnimationFrame(function () { ticking = false; updateActive(); });
+}, { passive: true });
+addEventListener("hashchange", updateActive);
+updateActive();
 // 根拠の番号を押したとき、まだ埋め込んでいなければその場で埋め込む
 document.addEventListener("click", function (e) {
   var a = e.target.closest && e.target.closest("a.cite");
