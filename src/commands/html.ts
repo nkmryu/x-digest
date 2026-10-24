@@ -127,7 +127,7 @@ a.cite { display: inline-block; min-width: 1.6em; padding: 0 4px; border-radius:
   <nav>
     <h1>X のまとめ</h1>
     <div class="updated">${updated} ／ ${shown} 件</div>
-    <p class="links"><a href="calendar.html">曜日×時間で見る</a></p>
+    <p class="links"><a href="calendar.html">週ごとのカレンダーで見る</a></p>
     <ul>${nav}</ul>
   </nav>
   <main>${sections.join("")}</main>
