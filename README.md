@@ -72,6 +72,8 @@ pnpm x:update   # fetch → classify → digest → html
 
 カテゴリーを変えたいときは `data/categories.json` を直す。一覧から消したカテゴリーの投稿は、次の classify で分類し直す。
 
+今あるカテゴリーを細かく分け直すときは、`pnpm x:propose --category <名前> --category <名前> --count 8〜14` のように、そのカテゴリーの投稿だけで案を出せる。案を `categories.json` に反映して古いカテゴリーを消すと、次の `pnpm x:classify` がその投稿を分け直す。
+
 カテゴリーに `"group": "AI"` のように親グループの名前を付けると、まとめ（`digest.md` と `digest.html`）では同じ group のカテゴリーが 1 つの章にまとまる。親の並びは、ファイルで最初に出てきた順。group の無いカテゴリーは、親なしで最後に並ぶ。分類は group に関係なくカテゴリー単位で行うので、group を付けたり変えたりしても分類し直しは要らない。
 
 カテゴリーを足したときは、今あるカテゴリーの投稿は分類し直さない。「その他」などを分類し直すときは、そのカテゴリーを指定する。
