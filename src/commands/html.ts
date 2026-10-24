@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { calendarEntries, renderCalendarHtml } from "../calendar.ts";
 import { loadCategories, loadHtmlExcluded } from "../categories.ts";
 import { dropForeignLinks } from "../links.ts";
 import { type Post, type SummaryStore, OUT_DIR, loadPosts, paths, readJson } from "../store.ts";
@@ -61,6 +62,7 @@ for (const s of groupSections(categories, groups)) {
 const sections = main;
 const nav = navItems.join("");
 
+const updated = escapeHtml(new Date().toLocaleString("ja-JP"));
 const html = `<!doctype html>
 <html lang="ja">
 <head>
@@ -79,7 +81,9 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.75 sys
 .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); max-width: 1320px; margin: 0 auto; }
 nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 24px 16px; border-right: 1px solid var(--line); }
 nav h1 { font-size: 16px; margin: 0 0 4px; }
-nav .updated { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+nav .updated { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+nav .links { margin: 0 0 16px; font-size: 13px; }
+nav .links a { color: var(--accent); }
 nav ul { list-style: none; margin: 0; padding: 0; }
 nav li { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: 14px; }
 nav li.group { font-weight: 600; margin-top: 12px; break-after: avoid; }
@@ -122,7 +126,8 @@ a.cite { display: inline-block; min-width: 1.6em; padding: 0 4px; border-radius:
 <div class="layout">
   <nav>
     <h1>X のまとめ</h1>
-    <div class="updated">${escapeHtml(new Date().toLocaleString("ja-JP"))} ／ ${shown} 件</div>
+    <div class="updated">${updated} ／ ${shown} 件</div>
+    <p class="links"><a href="calendar.html">曜日×時間で見る</a></p>
     <ul>${nav}</ul>
   </nav>
   <main>${sections.join("")}</main>
@@ -199,3 +204,9 @@ const file = path.join(OUT_DIR, "digest.html");
 await mkdir(OUT_DIR, { recursive: true });
 await writeFile(file, html);
 console.log(`${file} に書き出しました${excluded.size > 0 ? `（外したカテゴリー: ${excluded.size} 個）` : ""}`);
+
+const entries = calendarEntries(posts, categories, excluded);
+const groupNames = [...new Set(categories.flatMap((c) => (c.group && !excluded.has(c.name) ? [c.group] : [])))];
+const calendarFile = path.join(OUT_DIR, "calendar.html");
+await writeFile(calendarFile, renderCalendarHtml(entries, groupNames, `${updated} ／ ${entries.length} 件`));
+console.log(`${calendarFile} に書き出しました`);
