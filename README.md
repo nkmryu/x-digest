@@ -72,6 +72,8 @@ pnpm x:update   # fetch → classify → digest → html
 
 カテゴリーを変えたいときは `data/categories.json` を直す。一覧から消したカテゴリーの投稿は、次の classify で分類し直す。
 
+カテゴリーに `"group": "AI"` のように親グループの名前を付けると、まとめ（`digest.md` と `digest.html`）では同じ group のカテゴリーが 1 つの章にまとまる。親の並びは、ファイルで最初に出てきた順。group の無いカテゴリーは、親なしで最後に並ぶ。分類は group に関係なくカテゴリー単位で行うので、group を付けたり変えたりしても分類し直しは要らない。
+
 カテゴリーを足したときは、今あるカテゴリーの投稿は分類し直さない。「その他」などを分類し直すときは、そのカテゴリーを指定する。
 
 ```
@@ -94,6 +96,7 @@ pnpm x:serve   # http://127.0.0.1:4173/digest.html で開く
 - カテゴリーの全投稿は折りたたみに入れ、開いてスクロールした分から埋め込む
 - 埋め込みは X の `widgets.js` を読み込む。開くと、表示した投稿の分だけ X に通信する（`dnt: true` を付けている）
 - 消された投稿や非公開の投稿は埋め込めないので、日付と本文の先頭を出したままになる
+- `data/categories.json` のカテゴリーに `"excludeFromHtml": true` を付けると、その章を `digest.html` に出さない（`digest.md` には残る）。「その他」を外すときは `{ "name": "その他", "description": "", "excludeFromHtml": true }` の行を足す（分類には使われない）
 
 ## いいねを解除する
 

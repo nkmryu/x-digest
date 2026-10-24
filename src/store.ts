@@ -53,6 +53,10 @@ export interface PostStore {
 export interface Category {
   name: string;
   description: string;
+  // 親グループの名前。まとめでは、同じ group のカテゴリーを 1 つの章にまとめる。無ければ親なしで並ぶ
+  group?: string;
+  // true なら x:html の書き出しから外す（ほかの場所へ移した章など）。digest.md には残す
+  excludeFromHtml?: boolean;
 }
 
 export interface CategoryFile {

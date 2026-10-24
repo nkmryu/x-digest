@@ -21,6 +21,38 @@ export function groupPosts(categories: Category[], posts: Post[]): Group[] {
     .filter((g) => g.posts.length > 0);
 }
 
+export interface Section {
+  // null は親グループの無いカテゴリー
+  name: string | null;
+  groups: Group[];
+}
+
+/**
+ * カテゴリーの Group を親グループごとにまとめる。親の並びは、カテゴリーの一覧で最初に出てきた順。
+ * 親の無いカテゴリーは、それぞれ 1 つの Section として最後に置く
+ */
+export function groupSections(categories: Category[], groups: Group[]): Section[] {
+  const parentOf = new Map(categories.map((c) => [c.name, c.group ?? null]));
+  const sections: Section[] = [];
+  const parentless: Section[] = [];
+  for (const g of groups) {
+    const parent = parentOf.get(g.name) ?? null;
+    if (parent === null) {
+      parentless.push({ name: null, groups: [g] });
+      continue;
+    }
+    let section = sections.find((s) => s.name === parent);
+    if (!section) {
+      section = { name: parent, groups: [] };
+      sections.push(section);
+    }
+    section.groups.push(g);
+  }
+  return [...sections, ...parentless];
+}
+
+export const sectionCount = (s: Section) => s.groups.reduce((n, g) => n + g.posts.length, 0);
+
 // 本文が空の投稿（記事・画像だけ・引用だけ）も、一覧で何の投稿かわかるようにする
 export const listText = (p: Post) =>
   p.text.replace(/https:\/\/t\.co\/\S+/g, "").trim() ||

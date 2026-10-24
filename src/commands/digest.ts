@@ -4,7 +4,7 @@ import { loadCategories, sameIds } from "../categories.ts";
 import { DATA_NOTE, askText, renderPosts } from "../claude.ts";
 import { dropForeignLinks } from "../links.ts";
 import { type SummaryStore, loadPosts, paths, readJson, writeJson } from "../store.ts";
-import { groupPosts, listText, sourceLabel } from "../view.ts";
+import { type Group, groupPosts, groupSections, listText, sectionCount, sourceLabel } from "../view.ts";
 import { postUrl } from "../x/api.ts";
 
 const categories = await loadCategories();
@@ -48,14 +48,25 @@ const oneLine = (text: string) => {
 };
 const anchor = (name: string) => name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-");
 
+const tocItem = (g: Group) => `[${g.name}](#${anchor(g.name)})（${g.posts.length} 件）`;
+const sections = groupSections(categories, groups);
 const lines = [
   "# X のブックマーク・いいねのまとめ",
   "",
   `更新: ${new Date().toLocaleString("ja-JP")} ／ ${posts.length - unclassified} 件`,
   "",
-  ...groups.map((g) => `- [${g.name}](#${anchor(g.name)})（${g.posts.length} 件）`),
+  ...sections.flatMap((s) =>
+    s.name === null
+      ? s.groups.map((g) => `- ${tocItem(g)}`)
+      : [`- ${s.name}（${sectionCount(s)} 件）`, ...s.groups.map((g) => `  - ${tocItem(g)}`)],
+  ),
 ];
-for (const g of groups) {
+for (const s of sections) {
+  if (s.name !== null) lines.push("", `## ${s.name}`);
+  for (const g of s.groups) chapter(g, s.name === null ? "##" : "###");
+}
+
+function chapter(g: Group, heading: "##" | "###") {
   // 保存済みの要約にも効くよう、書き出すときに確かめる
   const { text, dropped } = dropForeignLinks(summaries[g.name]!.text, new Set(g.posts.map((p) => p.id)));
   if (dropped.length > 0) {
@@ -63,7 +74,7 @@ for (const g of groups) {
   }
   lines.push(
     "",
-    `## ${g.name}`,
+    `${heading} ${g.name}`,
     "",
     text,
     "",

@@ -1,16 +1,18 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { loadCategories } from "../categories.ts";
+import { loadCategories, loadHtmlExcluded } from "../categories.ts";
 import { dropForeignLinks } from "../links.ts";
 import { type Post, type SummaryStore, OUT_DIR, loadPosts, paths, readJson } from "../store.ts";
 import { citedIds, escapeHtml, summaryToHtml } from "../summary-html.ts";
-import { groupPosts, listText, sourceLabel } from "../view.ts";
+import { type Group, groupPosts, groupSections, listText, sectionCount, sourceLabel } from "../view.ts";
 import { postUrl } from "../x/api.ts";
 
 const categories = await loadCategories();
 const posts = Object.values((await loadPosts()).posts);
 const summaries = await readJson<SummaryStore>(paths.summaries, {});
-const groups = groupPosts(categories, posts);
+const excluded = await loadHtmlExcluded();
+const groups = groupPosts(categories, posts).filter((g) => !excluded.has(g.name));
+const shown = groups.reduce((n, g) => n + g.posts.length, 0);
 const byId = new Map(posts.map((p) => [p.id, p]));
 
 const snippet = (p: Post) => {
@@ -28,25 +30,40 @@ const tweet = (p: Post, anchorId?: string) => `
   </div>
 </div>`;
 
-const sections = groups.map((g, i) => {
+// 親グループの中のカテゴリーは h3、親の無いカテゴリーは h2。章の番号（cat-N）は左の一覧と同じ通し番号
+let index = 0;
+const navItems: string[] = [];
+const main: string[] = [];
+function chapter(g: Group, level: "h2" | "h3") {
+  const i = index++;
   const ids = new Set(g.posts.map((p) => p.id));
   const summary = summaries[g.name] ? dropForeignLinks(summaries[g.name]!.text, ids).text : "";
   const cited = citedIds(summary).flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
-  return `
+  navItems.push(
+    `<li class="${level === "h3" ? "child" : "top"}"><a href="#cat-${i}">${escapeHtml(g.name)}</a> <span class="count">${g.posts.length}</span></li>`,
+  );
+  main.push(`
 <section id="cat-${i}">
-  <h2>${escapeHtml(g.name)} <span class="count">${g.posts.length} 件</span></h2>
+  <${level} class="cat">${escapeHtml(g.name)} <span class="count">${g.posts.length} 件</span></${level}>
   <div class="summary">${summaryToHtml(summary)}</div>
-  ${cited.length > 0 ? `<h3>要約の根拠の投稿</h3><div class="tweets">${cited.map((p) => tweet(p, `c-${p.id}`)).join("")}</div>` : ""}
+  ${cited.length > 0 ? `<h4 class="sub">要約の根拠の投稿</h4><div class="tweets">${cited.map((p) => tweet(p, `c-${p.id}`)).join("")}</div>` : ""}
   <details>
     <summary>このカテゴリーの投稿 ${g.posts.length} 件をすべて見る</summary>
     <div class="tweets">${g.posts.map((p) => tweet(p)).join("")}</div>
   </details>
-</section>`;
-});
-
-const nav = groups
-  .map((g, i) => `<li><a href="#cat-${i}">${escapeHtml(g.name)}</a> <span class="count">${g.posts.length}</span></li>`)
-  .join("");
+</section>`);
+}
+for (const s of groupSections(categories, groups)) {
+  if (s.name === null) {
+    for (const g of s.groups) chapter(g, "h2");
+    continue;
+  }
+  navItems.push(`<li class="group">${escapeHtml(s.name)} <span class="count">${sectionCount(s)}</span></li>`);
+  main.push(`<h2 class="group-title">${escapeHtml(s.name)} <span class="count">${sectionCount(s)} 件</span></h2>`);
+  for (const g of s.groups) chapter(g, "h3");
+}
+const sections = main;
+const nav = navItems.join("");
 
 const html = `<!doctype html>
 <html lang="ja">
@@ -69,13 +86,16 @@ nav h1 { font-size: 16px; margin: 0 0 4px; }
 nav .updated { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
 nav ul { list-style: none; margin: 0; padding: 0; }
 nav li { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: 14px; }
+nav li.group { font-weight: 600; margin-top: 12px; break-after: avoid; }
+nav li.child { padding-left: 12px; }
 nav a { color: var(--text); text-decoration: none; }
 nav a:hover { color: var(--accent); }
 .count { color: var(--muted); font-size: 12px; font-weight: normal; }
 main { padding: 24px 32px 80px; min-width: 0; }
 section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 24px 28px; margin-bottom: 24px; scroll-margin-top: 16px; }
-h2 { margin: 0 0 12px; font-size: 20px; }
-h3 { margin: 24px 0 8px; font-size: 14px; color: var(--muted); }
+.group-title { margin: 8px 0 16px; font-size: 22px; }
+.cat { margin: 0 0 12px; font-size: 20px; }
+.sub { margin: 24px 0 8px; font-size: 14px; font-weight: 600; color: var(--muted); }
 .summary ul { padding-left: 1.4em; }
 .summary li { margin: 4px 0; }
 a.cite { display: inline-block; min-width: 1.6em; padding: 0 4px; border-radius: 4px; background: var(--line); color: var(--accent); text-align: center; text-decoration: none; font-size: 12px; line-height: 1.6; }
@@ -103,7 +123,7 @@ details > summary { cursor: pointer; color: var(--accent); margin-bottom: 12px; 
 <div class="layout">
   <nav>
     <h1>X のまとめ</h1>
-    <div class="updated">${escapeHtml(new Date().toLocaleString("ja-JP"))} ／ ${posts.length} 件</div>
+    <div class="updated">${escapeHtml(new Date().toLocaleString("ja-JP"))} ／ ${shown} 件</div>
     <ul>${nav}</ul>
   </nav>
   <main>${sections.join("")}</main>
@@ -148,4 +168,4 @@ document.addEventListener("click", function (e) {
 const file = path.join(OUT_DIR, "digest.html");
 await mkdir(OUT_DIR, { recursive: true });
 await writeFile(file, html);
-console.log(`${file} に書き出しました`);
+console.log(`${file} に書き出しました${excluded.size > 0 ? `（外したカテゴリー: ${excluded.size} 個）` : ""}`);
