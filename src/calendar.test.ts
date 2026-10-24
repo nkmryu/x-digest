@@ -44,7 +44,7 @@ test("HTML から外したカテゴリーと、時刻や分類の無い投稿は
 test("本文に </script> があっても、ページの script を抜け出さない", () => {
   const html = renderCalendarHtml(
     [{ id: "1", date: "2026-10-24", week: "2026-10-19", w: 5, h: 12, m: 0, text: "</script><img src=x onerror=alert(1)>", category: "a", group: "A", source: "いいね" }],
-    ["A"],
+    [{ name: "a", group: "A" }],
     "更新",
   );
   assert.equal(html.match(/<\/script>/g)?.length, 1);

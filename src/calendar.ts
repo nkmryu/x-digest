@@ -54,7 +54,14 @@ export function calendarEntries(posts: Post[], categories: Category[], excluded:
 // JSON を <script> に埋めるので、</script> や <!-- で抜け出せないよう < をエスケープする
 const jsonForScript = (value: unknown) => JSON.stringify(value).replace(/</g, "\\u003c");
 
-export function renderCalendarHtml(entries: CalendarEntry[], groups: string[], updated: string): string {
+export interface CalendarCategory {
+  name: string;
+  group: string | null;
+}
+
+export function renderCalendarHtml(entries: CalendarEntry[], categories: CalendarCategory[], updated: string): string {
+  // 親グループの並びは、カテゴリーの一覧で最初に出てきた順
+  const groups = [...new Set(categories.flatMap((c) => (c.group ? [c.group] : [])))];
   return `<!doctype html>
 <html lang="ja">
 <head>
@@ -78,10 +85,10 @@ h1 { font-size: 16px; margin: 0; }
 .nav { display: flex; align-items: center; gap: 6px; }
 button, select { font: inherit; font-size: 13px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); cursor: pointer; }
 button:disabled { opacity: 0.4; cursor: default; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px; }
-.legend button { border-radius: 999px; padding: 3px 10px 3px 8px; display: flex; align-items: center; gap: 6px; }
-.legend button i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; background: var(--c); }
-.legend button.off { opacity: 0.4; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+.legend span { display: flex; align-items: center; gap: 5px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; background: var(--c); }
+#cat { max-width: 320px; }
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; padding: 16px; max-width: 1500px; margin: 0 auto; }
 .cal { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
 table { border-collapse: collapse; width: 100%; min-width: 820px; table-layout: fixed; }
@@ -90,7 +97,9 @@ th .d { display: block; color: var(--muted); font-weight: normal; }
 th.hour, td.hour { width: 44px; text-align: right; padding-right: 6px; color: var(--muted); font-size: 11px; vertical-align: top; }
 td { border-top: 1px solid var(--line); border-left: 1px solid var(--line); vertical-align: top; padding: 2px; min-height: 28px; height: 28px; }
 td.today { background: color-mix(in srgb, var(--accent) 6%, transparent); }
-.ev { display: block; width: 100%; text-align: left; margin: 0 0 2px; padding: 3px 6px; border: 0; border-left: 3px solid var(--c); border-radius: 4px; background: color-mix(in srgb, var(--c) 16%, var(--panel)); color: var(--text); font-size: 11px; line-height: 1.35; cursor: pointer; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.ev { display: block; width: 100%; text-align: left; margin: 0 0 2px; padding: 3px 6px; border: 0; border-left: 3px solid var(--c); border-radius: 4px; background: color-mix(in srgb, var(--c) 16%, var(--panel)); color: var(--text); font-size: 11px; line-height: 1.35; cursor: pointer; }
+.ev .cat { display: block; font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev .body { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .ev b { font-weight: 600; margin-right: 4px; }
 .ev.on { outline: 2px solid var(--text); }
 .panel { position: sticky; top: 64px; align-self: start; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-height: 200px; }
@@ -114,6 +123,7 @@ td.today { background: color-mix(in srgb, var(--accent) 6%, transparent); }
     <select id="weeks"></select>
     <button id="next">次の週 ›</button>
   </div>
+  <select id="cat" title="絞り込み"></select>
   <div class="legend" id="legend"></div>
   <span class="note">${escapeHtml(updated)}。投稿が書かれた日時（日本時間）で置いています</span>
 </div>
@@ -135,9 +145,11 @@ window.twttr = (function (d, s, id) {
 (function () {
 var DATA = ${jsonForScript(entries)};
 var GROUPS = ${jsonForScript(groups)};
+var CATEGORIES = ${jsonForScript(categories)};
 var WEEKDAYS = ${jsonForScript(WEEKDAYS)};
 var theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-var hidden = {};
+// 絞り込み。"" はすべて、"g:親" は親グループ、"c:カテゴリー" はカテゴリー
+var filter = "";
 var selectedId = null;
 
 function el(tag, attrs, text) {
@@ -171,19 +183,28 @@ select.addEventListener("change", function () { weekIndex = Number(select.value)
 document.getElementById("prev").addEventListener("click", function () { if (weekIndex < weeks.length - 1) { weekIndex++; render(); } });
 document.getElementById("next").addEventListener("click", function () { if (weekIndex > 0) { weekIndex--; render(); } });
 
-// 凡例。押すとそのグループだけを出し、もう一度押すと全部に戻す
+// 絞り込みの選択リスト。親グループごとに区切り、親そのものとカテゴリーを並べる
+var catSelect = document.getElementById("cat");
+catSelect.appendChild(el("option", { value: "" }, "すべてのカテゴリー"));
+GROUPS.forEach(function (g) {
+  var og = el("optgroup", { label: g });
+  og.appendChild(el("option", { value: "g:" + g }, g + "（すべて）"));
+  CATEGORIES.forEach(function (c) { if (c.group === g) og.appendChild(el("option", { value: "c:" + c.name }, c.name)); });
+  catSelect.appendChild(og);
+});
+CATEGORIES.forEach(function (c) { if (c.group === null) catSelect.appendChild(el("option", { value: "c:" + c.name }, c.name)); });
+catSelect.addEventListener("change", function () { filter = catSelect.value; render(); });
+function matches(d) {
+  if (filter === "") return true;
+  return filter.slice(0, 2) === "g:" ? d.group === filter.slice(2) : d.category === filter.slice(2);
+}
+// 凡例は色の説明
 var legend = document.getElementById("legend");
 GROUPS.forEach(function (g) {
-  var b = el("button", { style: "--c:" + colorOf(g) });
-  b.appendChild(el("i"));
-  b.appendChild(document.createTextNode(g));
-  b.addEventListener("click", function () {
-    var only = GROUPS.every(function (x) { return x === g ? !hidden[x] : hidden[x]; });
-    GROUPS.forEach(function (x) { hidden[x] = only ? false : x !== g; });
-    legend.querySelectorAll("button").forEach(function (x, i) { x.className = hidden[GROUPS[i]] ? "off" : ""; });
-    render();
-  });
-  legend.appendChild(b);
+  var sp = el("span", { style: "--c:" + colorOf(g) });
+  sp.appendChild(el("i"));
+  sp.appendChild(document.createTextNode(g));
+  legend.appendChild(sp);
 });
 
 var table = document.getElementById("table");
@@ -192,7 +213,7 @@ function render() {
   select.value = weekIndex;
   document.getElementById("prev").disabled = weekIndex >= weeks.length - 1;
   document.getElementById("next").disabled = weekIndex <= 0;
-  var items = byWeek[monday].filter(function (d) { return !hidden[d.group]; });
+  var items = byWeek[monday].filter(matches);
   var cells = {};
   items.forEach(function (d) { (cells[d.w + "-" + d.h] = cells[d.w + "-" + d.h] || []).push(d); });
   table.textContent = "";
@@ -211,8 +232,11 @@ function render() {
       var td = el("td");
       (cells[w2 + "-" + h] || []).sort(function (a, b) { return a.m - b.m; }).forEach(function (d) {
         var ev = el("button", { class: "ev" + (d.id === selectedId ? " on" : ""), style: "--c:" + colorOf(d.group), title: d.category + " ・ " + d.source, "data-id": d.id });
-        ev.appendChild(el("b", {}, pad(d.h) + ":" + pad(d.m)));
-        ev.appendChild(document.createTextNode(d.text));
+        ev.appendChild(el("span", { class: "cat" }, d.category));
+        var body = el("span", { class: "body" });
+        body.appendChild(el("b", {}, pad(d.h) + ":" + pad(d.m)));
+        body.appendChild(document.createTextNode(d.text));
+        ev.appendChild(body);
         ev.addEventListener("click", function () { show(d, ev); });
         td.appendChild(ev);
       });

@@ -206,7 +206,7 @@ await writeFile(file, html);
 console.log(`${file} に書き出しました${excluded.size > 0 ? `（外したカテゴリー: ${excluded.size} 個）` : ""}`);
 
 const entries = calendarEntries(posts, categories, excluded);
-const groupNames = [...new Set(categories.flatMap((c) => (c.group && !excluded.has(c.name) ? [c.group] : [])))];
+const calendarCategories = categories.filter((c) => !excluded.has(c.name)).map((c) => ({ name: c.name, group: c.group ?? null }));
 const calendarFile = path.join(OUT_DIR, "calendar.html");
-await writeFile(calendarFile, renderCalendarHtml(entries, groupNames, `${updated} ／ ${entries.length} 件`));
+await writeFile(calendarFile, renderCalendarHtml(entries, calendarCategories, `${updated} ／ ${entries.length} 件`));
 console.log(`${calendarFile} に書き出しました`);
