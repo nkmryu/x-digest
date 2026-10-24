@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Category, Post } from "./store.ts";
-import { groupPosts, groupSections } from "./view.ts";
+import { groupPosts, groupSections, partitionCited } from "./view.ts";
 
 const post = (id: string, category: string): Post => ({ id, text: "", urls: [], sources: ["like"], firstSeenAt: "", category });
 const categories: Category[] = [
@@ -29,4 +29,11 @@ test("親グループは最初に出てきた順に並び、同じ親のカテ�
 test("投稿の無いカテゴリーは、親グループにも出ない", () => {
   const sections = groupSections(categories, groupPosts(categories, posts));
   assert.equal(sections.flatMap((s) => s.groups).some((g) => g.name === "empty"), false);
+});
+
+test("根拠の投稿は要約の順に並び、残りには出ない。知らない ID と重なる ID は無視する", () => {
+  const ps = [post("1", "a"), post("2", "a"), post("3", "a")];
+  const { cited, rest } = partitionCited(ps, ["3", "9", "3", "1"]);
+  assert.deepEqual(cited.map((p) => p.id), ["3", "1"]);
+  assert.deepEqual(rest.map((p) => p.id), ["2"]);
 });

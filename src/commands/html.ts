@@ -4,7 +4,7 @@ import { loadCategories, loadHtmlExcluded } from "../categories.ts";
 import { dropForeignLinks } from "../links.ts";
 import { type Post, type SummaryStore, OUT_DIR, loadPosts, paths, readJson } from "../store.ts";
 import { citedIds, escapeHtml, summaryToHtml } from "../summary-html.ts";
-import { type Group, groupPosts, groupSections, listText, sectionCount, sourceLabel } from "../view.ts";
+import { type Group, groupPosts, groupSections, listText, partitionCited, sectionCount, sourceLabel } from "../view.ts";
 import { postUrl } from "../x/api.ts";
 
 const categories = await loadCategories();
@@ -13,7 +13,6 @@ const summaries = await readJson<SummaryStore>(paths.summaries, {});
 const excluded = await loadHtmlExcluded();
 const groups = groupPosts(categories, posts).filter((g) => !excluded.has(g.name));
 const shown = groups.reduce((n, g) => n + g.posts.length, 0);
-const byId = new Map(posts.map((p) => [p.id, p]));
 
 const snippet = (p: Post) => {
   const flat = listText(p).replace(/\s+/g, " ").trim();
@@ -38,7 +37,7 @@ function chapter(g: Group, level: "h2" | "h3") {
   const i = index++;
   const ids = new Set(g.posts.map((p) => p.id));
   const summary = summaries[g.name] ? dropForeignLinks(summaries[g.name]!.text, ids).text : "";
-  const cited = citedIds(summary).flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
+  const { cited, rest } = partitionCited(g.posts, citedIds(summary));
   navItems.push(
     `<li class="${level === "h3" ? "child" : "top"}"><a href="#cat-${i}">${escapeHtml(g.name)}</a> <span class="count">${g.posts.length}</span></li>`,
   );
@@ -46,11 +45,8 @@ function chapter(g: Group, level: "h2" | "h3") {
 <section id="cat-${i}">
   <${level} class="cat">${escapeHtml(g.name)} <span class="count">${g.posts.length} 件</span></${level}>
   <div class="summary">${summaryToHtml(summary)}</div>
-  ${cited.length > 0 ? `<h4 class="sub">要約の根拠の投稿</h4><div class="tweets">${cited.map((p) => tweet(p, `c-${p.id}`)).join("")}</div>` : ""}
-  <details>
-    <summary>このカテゴリーの投稿 ${g.posts.length} 件をすべて見る</summary>
-    <div class="tweets">${g.posts.map((p) => tweet(p)).join("")}</div>
-  </details>
+  ${cited.length > 0 ? `<h4 class="sub">要約の根拠の投稿 <span class="count">${cited.length} 件</span></h4><div class="tweets">${cited.map((p) => tweet(p, `c-${p.id}`)).join("")}</div>` : ""}
+  ${rest.length > 0 ? `<h4 class="sub">${cited.length > 0 ? "そのほかの投稿" : "投稿"} <span class="count">${rest.length} 件</span></h4><div class="tweets">${rest.map((p) => tweet(p)).join("")}</div>` : ""}
 </section>`);
 }
 for (const s of groupSections(categories, groups)) {
@@ -107,8 +103,6 @@ a.cite { display: inline-block; min-width: 1.6em; padding: 0 4px; border-radius:
 .tweet .meta { color: var(--muted); font-size: 12px; }
 .tweet .fallback a { color: var(--accent); font-size: 12px; }
 .tweet > .twitter-tweet { margin: 0 !important; }
-details { margin-top: 20px; }
-details > summary { cursor: pointer; color: var(--accent); margin-bottom: 12px; }
 @media (max-width: 860px) {
   .layout { grid-template-columns: 1fr; }
   nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 16px; }
@@ -148,7 +142,7 @@ function embed(el) {
     });
   });
 }
-// 画面に近づいた投稿から埋め込む。閉じた details の中は見えないので、開くまで読み込まない
+// 画面に近づいた投稿から埋め込む
 var io = new IntersectionObserver(function (entries) {
   entries.forEach(function (e) {
     if (e.isIntersecting) { io.unobserve(e.target); embed(e.target); }
