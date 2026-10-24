@@ -1,0 +1,151 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { loadCategories } from "../categories.ts";
+import { dropForeignLinks } from "../links.ts";
+import { type Post, type SummaryStore, OUT_DIR, loadPosts, paths, readJson } from "../store.ts";
+import { citedIds, escapeHtml, summaryToHtml } from "../summary-html.ts";
+import { groupPosts, listText, sourceLabel } from "../view.ts";
+import { postUrl } from "../x/api.ts";
+
+const categories = await loadCategories();
+const posts = Object.values((await loadPosts()).posts);
+const summaries = await readJson<SummaryStore>(paths.summaries, {});
+const groups = groupPosts(categories, posts);
+const byId = new Map(posts.map((p) => [p.id, p]));
+
+const snippet = (p: Post) => {
+  const flat = listText(p).replace(/\s+/g, " ").trim();
+  return flat.length > 120 ? `${flat.slice(0, 120)}…` : flat;
+};
+
+// 埋め込みが読み込まれるまで（消された投稿は読み込めないので、その後も）出しておく中身
+const tweet = (p: Post, anchorId?: string) => `
+<div class="tweet"${anchorId ? ` id="${anchorId}"` : ""} data-id="${p.id}">
+  <div class="fallback">
+    <div class="meta">${escapeHtml(p.createdAt?.slice(0, 10) ?? "")} ・ ${sourceLabel(p)}</div>
+    <div>${escapeHtml(snippet(p))}</div>
+    <a href="${postUrl(p.id)}" target="_blank" rel="noopener noreferrer">X で開く</a>
+  </div>
+</div>`;
+
+const sections = groups.map((g, i) => {
+  const ids = new Set(g.posts.map((p) => p.id));
+  const summary = summaries[g.name] ? dropForeignLinks(summaries[g.name]!.text, ids).text : "";
+  const cited = citedIds(summary).flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
+  return `
+<section id="cat-${i}">
+  <h2>${escapeHtml(g.name)} <span class="count">${g.posts.length} 件</span></h2>
+  <div class="summary">${summaryToHtml(summary)}</div>
+  ${cited.length > 0 ? `<h3>要約の根拠の投稿</h3><div class="tweets">${cited.map((p) => tweet(p, `c-${p.id}`)).join("")}</div>` : ""}
+  <details>
+    <summary>このカテゴリーの投稿 ${g.posts.length} 件をすべて見る</summary>
+    <div class="tweets">${g.posts.map((p) => tweet(p)).join("")}</div>
+  </details>
+</section>`;
+});
+
+const nav = groups
+  .map((g, i) => `<li><a href="#cat-${i}">${escapeHtml(g.name)}</a> <span class="count">${g.posts.length}</span></li>`)
+  .join("");
+
+const html = `<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>X のまとめ</title>
+<style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e3e3de; --accent: #1d6fd8; --target: #fff3c4;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #151514; --panel: #1e1e1c; --text: #ecece8; --muted: #9a9a93; --line: #33332f; --accent: #6aa8ff; --target: #4a4220; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.75 system-ui, -apple-system, "Hiragino Sans", sans-serif; }
+.layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); max-width: 1320px; margin: 0 auto; }
+nav { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 24px 16px; border-right: 1px solid var(--line); }
+nav h1 { font-size: 16px; margin: 0 0 4px; }
+nav .updated { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+nav ul { list-style: none; margin: 0; padding: 0; }
+nav li { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: 14px; }
+nav a { color: var(--text); text-decoration: none; }
+nav a:hover { color: var(--accent); }
+.count { color: var(--muted); font-size: 12px; font-weight: normal; }
+main { padding: 24px 32px 80px; min-width: 0; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 24px 28px; margin-bottom: 24px; scroll-margin-top: 16px; }
+h2 { margin: 0 0 12px; font-size: 20px; }
+h3 { margin: 24px 0 8px; font-size: 14px; color: var(--muted); }
+.summary ul { padding-left: 1.4em; }
+.summary li { margin: 4px 0; }
+a.cite { display: inline-block; min-width: 1.6em; padding: 0 4px; border-radius: 4px; background: var(--line); color: var(--accent); text-align: center; text-decoration: none; font-size: 12px; line-height: 1.6; }
+.tweets { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; align-items: start; }
+.tweet { min-height: 80px; border-radius: 12px; scroll-margin-top: 16px; }
+.tweet:target { outline: 3px solid var(--accent); background: var(--target); }
+.tweet .fallback { padding: 12px 14px; border: 1px dashed var(--line); border-radius: 12px; font-size: 13px; overflow-wrap: anywhere; }
+.tweet.loaded .fallback { display: none; }
+.tweet .meta { color: var(--muted); font-size: 12px; }
+.tweet .fallback a { color: var(--accent); font-size: 12px; }
+.tweet > .twitter-tweet { margin: 0 !important; }
+details { margin-top: 20px; }
+details > summary { cursor: pointer; color: var(--accent); margin-bottom: 12px; }
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+  nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 16px; }
+  nav ul { columns: 2; }
+  main { padding: 16px; }
+  section { padding: 16px; }
+  .tweets { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav>
+    <h1>X のまとめ</h1>
+    <div class="updated">${escapeHtml(new Date().toLocaleString("ja-JP"))} ／ ${posts.length} 件</div>
+    <ul>${nav}</ul>
+  </nav>
+  <main>${sections.join("")}</main>
+</div>
+<script>
+window.twttr = (function (d, s, id) {
+  var js, fjs = d.getElementsByTagName(s)[0], t = window.twttr || {};
+  if (d.getElementById(id)) return t;
+  js = d.createElement(s); js.id = id; js.async = true; js.src = "https://platform.twitter.com/widgets.js";
+  fjs.parentNode.insertBefore(js, fjs);
+  t._e = []; t.ready = function (f) { t._e.push(f); };
+  return t;
+})(document, "script", "twitter-wjs");
+
+var theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+function embed(el) {
+  if (el.dataset.started) return;
+  el.dataset.started = "1";
+  twttr.ready(function (t) {
+    t.widgets.createTweet(el.dataset.id, el, { theme: theme, lang: "ja", dnt: true, conversation: "none" }).then(function (w) {
+      if (w) el.classList.add("loaded");
+    });
+  });
+}
+// 画面に近づいた投稿から埋め込む。閉じた details の中は見えないので、開くまで読み込まない
+var io = new IntersectionObserver(function (entries) {
+  entries.forEach(function (e) {
+    if (e.isIntersecting) { io.unobserve(e.target); embed(e.target); }
+  });
+}, { rootMargin: "600px" });
+document.querySelectorAll(".tweet").forEach(function (el) { io.observe(el); });
+// 根拠の番号を押したとき、まだ埋め込んでいなければその場で埋め込む
+document.addEventListener("click", function (e) {
+  var a = e.target.closest && e.target.closest("a.cite");
+  if (a) { var el = document.getElementById("c-" + a.dataset.id); if (el) embed(el); }
+});
+</script>
+</body>
+</html>
+`;
+
+const file = path.join(OUT_DIR, "digest.html");
+await mkdir(OUT_DIR, { recursive: true });
+await writeFile(file, html);
+console.log(`${file} に書き出しました`);
