@@ -32,6 +32,14 @@ export interface Post {
   refsCheckedAt?: string;
   // x:unlike で X のいいねを解除した日時。手元の記録とまとめには残す
   unlikedAt?: string;
+  // 投稿者。x:authors が oEmbed で調べる。消された投稿は取れないので無い
+  author?: Author;
+  authorCheckedAt?: string;
+}
+
+export interface Author {
+  name: string;
+  handle: string;
 }
 
 export interface PostRef {

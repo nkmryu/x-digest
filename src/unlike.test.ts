@@ -23,9 +23,20 @@ test("指定したカテゴリーの、まだ解除していないいいねだ�
     post("6", {}),
   ];
   assert.deepEqual(
-    selectUnlikeTargets(posts, ["A"]).map((p) => p.id),
+    selectUnlikeTargets(posts, { categories: ["A"] }).map((p) => p.id),
     ["2", "1"],
   );
+});
+
+test("投稿者の ID でも選べる。@ の有無と大文字小文字は問わず、カテゴリーと両方指定したら両方に合うもの", () => {
+  const posts = [
+    post("1", { category: "A", author: { name: "Example", handle: "example_user" } }),
+    post("2", { category: "B", author: { name: "Example", handle: "Example_User" } }),
+    post("3", { category: "A", author: { name: "x", handle: "someone" } }),
+    post("4", { category: "A" }),
+  ];
+  assert.deepEqual(selectUnlikeTargets(posts, { author: "@EXAMPLE_user" }).map((p) => p.id), ["1", "2"]);
+  assert.deepEqual(selectUnlikeTargets(posts, { author: "example_user", categories: ["A"] }).map((p) => p.id), ["1"]);
 });
 
 test("一覧から読むのは行頭の ID だけで、# の行・空行・重なりは読まない", () => {
@@ -48,4 +59,10 @@ test("行を消したり # を付けたりした投稿は、解除の対象か�
 test("解除したいいねは、一覧で「いいね（解除済み）」と出す", () => {
   assert.equal(sourceLabel(post("1", { sources: ["bookmark", "like"] })), "ブックマーク・いいね");
   assert.equal(sourceLabel(post("1", { sources: ["bookmark", "like"], unlikedAt: "x" })), "ブックマーク・いいね（解除済み）");
+});
+
+test("選んだ理由があれば、一覧の行末に付ける", () => {
+  const plan = formatPlan([post("10", { category: "A" })], new Map([["10", "食事の\n報告だけ"]]));
+  assert.match(plan, /^10\t.* — 食事の 報告だけ$/m);
+  assert.deepEqual(parsePlan(plan), ["10"]);
 });

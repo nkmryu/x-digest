@@ -8,6 +8,8 @@
     "x:propose": "node --env-file-if-exists=.env --import tsx src/commands/propose.ts",
     "x:refs": "node --env-file-if-exists=.env --import tsx src/commands/refs.ts",
     "x:classify": "node --env-file-if-exists=.env --import tsx src/commands/classify.ts",
+    "x:authors": "node --env-file-if-exists=.env --import tsx src/commands/authors.ts",
+    "x:pick": "node --env-file-if-exists=.env --import tsx src/commands/pick.ts",
     "x:unlike": "node --env-file-if-exists=.env --import tsx src/commands/unlike.ts",
     "x:digest": "node --env-file-if-exists=.env --import tsx src/commands/digest.ts",
     "x:html": "node --env-file-if-exists=.env --import tsx src/commands/html.ts",
