@@ -58,6 +58,8 @@ async function walk(source: Source, start: string | undefined, tally: { added: n
 }
 
 let stopped = false;
+// 一覧を最後まで読めたソースと、その一覧にあった投稿の ID
+const completed: { source: Source; seen: Set<string> }[] = [];
 for (const source of sources) {
   const state = (store.sources[source] ??= {});
   // --full は先頭から最後までたどるので、前回止めた続きもその中に入る
@@ -88,24 +90,33 @@ for (const source of sources) {
   }
   state.pending = pending.length > 0 ? pending : undefined;
   // 一覧を最後まで読めたときだけ消す。途中で止まった回に消すと、読んでいない分まで消えてしまう
-  if (prune && !stopped && pending.length === 0 && dryRun) {
-    // 記録を変えずに、消す対象だけを出す
-    const copy: typeof store = JSON.parse(JSON.stringify(store));
-    const result = pruneSource(copy, source, tally.seen);
+  if (prune && !stopped && pending.length === 0) completed.push({ source, seen: tally.seen });
+  else if (prune) console.warn(`${source}: 一覧を最後まで読めなかったので、無くなった投稿は消していません`);
+  await savePosts(store);
+  console.log(`${source}: ${tally.added} 件を追加${pending.length > 0 ? "（途中で止めました。次回続きを取ります）" : ""}`);
+  if (stopped) break;
+}
+
+// 無くなった投稿を消すのは、頼まれたソースを全部読んだ後。ソースごとに消すと、ブックマークからいいねに移した投稿が、
+// いいねの一覧を読む前に記録ごと消え、分類と投稿者を失う
+if (prune && completed.length === sources.length) {
+  // --dry-run は記録を変えずに、消す対象だけを出す
+  const target: typeof store = dryRun ? JSON.parse(JSON.stringify(store)) : store;
+  for (const { source, seen } of completed) {
+    const result = pruneSource(target, source, seen);
+    if (!dryRun) {
+      console.log(`${source}: X の一覧に無かった ${result.removed.length} 件からこのソースを外し、うち ${result.deleted.length} 件は記録ごと消しました`);
+      continue;
+    }
     console.log(`${source}: X の一覧に無かった投稿 ${result.removed.length} 件（--dry-run なので消していません）`);
     for (const id of result.removed) {
       const p = store.posts[id]!;
       console.log(`  ${id}\t${p.createdAt?.slice(0, 10) ?? ""}\t[${p.category ?? "未分類"}]\t${p.text.replace(/\s+/g, " ").slice(0, 50)}`);
     }
-  } else if (prune && !stopped && pending.length === 0) {
-    const result = pruneSource(store, source, tally.seen);
-    console.log(`${source}: X の一覧に無かった ${result.removed.length} 件からこのソースを外し、うち ${result.deleted.length} 件は記録ごと消しました`);
-  } else if (prune) {
-    console.warn(`${source}: 一覧を最後まで読めなかったので、無くなった投稿は消していません`);
   }
-  await savePosts(store);
-  console.log(`${source}: ${tally.added} 件を追加${pending.length > 0 ? "（途中で止めました。次回続きを取ります）" : ""}`);
-  if (stopped) break;
+  if (!dryRun) await savePosts(store);
+} else if (prune && completed.length > 0) {
+  console.warn("一覧を最後まで読めなかったソースがあるので、無くなった投稿はどのソースでも消していません。次回 --full --prune でやり直してください");
 }
 
 console.log(`読み取った投稿: ${read} 件（自分のデータの読み取りで約 $${(read * 0.001).toFixed(3)}。同じ UTC の日に読み直した分は課金されません）`);
