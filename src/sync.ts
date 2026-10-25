@@ -1,4 +1,4 @@
-import type { PostStore, Source } from "./store.ts";
+import { type PostStore, type Source, isSourceActive } from "./store.ts";
 
 export interface PruneResult {
   // そのソースを外した投稿の ID
@@ -10,13 +10,12 @@ export interface PruneResult {
 /**
  * X の一覧を最後まで読んだ後に、手元にあるのに一覧に無かった投稿から、そのソースを外す。
  * いいねもブックマークも無くなった投稿は、記録ごと消す。
- * x:unlike で解除したいいね（unlikedAt あり）は、一覧に無くて当然なので触らない
+ * x:unlike / x:unbookmark で外したもの（unlikedAt / unbookmarkedAt あり）は、一覧に無くて当然なので触らない
  */
 export function pruneSource(store: PostStore, source: Source, seen: Set<string>): PruneResult {
   const result: PruneResult = { removed: [], deleted: [] };
   for (const [id, post] of Object.entries(store.posts)) {
-    if (!post.sources.includes(source) || seen.has(id)) continue;
-    if (source === "like" && post.unlikedAt) continue;
+    if (!isSourceActive(post, source) || seen.has(id)) continue;
     post.sources = post.sources.filter((s) => s !== source);
     result.removed.push(id);
     if (post.sources.length === 0) {

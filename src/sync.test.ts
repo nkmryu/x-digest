@@ -11,6 +11,7 @@ const store = (): PostStore => ({
     both: post("both", { sources: ["bookmark", "like"] }),
     unliked: post("unliked", { unlikedAt: "2026-10-24T00:00:00.000Z" }),
     bm: post("bm", { sources: ["bookmark"] }),
+    unbookmarked: post("unbookmarked", { sources: ["bookmark"], unbookmarkedAt: "2026-10-25T00:00:00.000Z" }),
   },
   sources: {},
 });
@@ -19,7 +20,7 @@ test("一覧に無かった投稿からソースを外し、ソースが無く�
   const s = store();
   const result = pruneSource(s, "like", new Set(["a"]));
   assert.deepEqual(result, { removed: ["b", "both"], deleted: ["b"] });
-  assert.deepEqual(Object.keys(s.posts).sort(), ["a", "bm", "both", "unliked"]);
+  assert.deepEqual(Object.keys(s.posts).sort(), ["a", "bm", "both", "unbookmarked", "unliked"]);
   assert.deepEqual(s.posts.both!.sources, ["bookmark"]);
 });
 
@@ -35,4 +36,10 @@ test("ブックマークの一覧は、いいねの記録に影響しない", ()
   assert.deepEqual(result, { removed: ["both", "bm"], deleted: ["bm"] });
   assert.deepEqual(s.posts.both!.sources, ["like"]);
   assert.deepEqual(s.posts.a!.sources, ["like"]);
+});
+
+test("x:unbookmark で外したブックマークは、一覧に無くても触らない", () => {
+  const s = store();
+  pruneSource(s, "bookmark", new Set(["both", "bm"]));
+  assert.deepEqual(s.posts.unbookmarked!.sources, ["bookmark"]);
 });

@@ -11,6 +11,7 @@ export const paths = {
   proposedCategories: path.join(DATA_DIR, "categories.proposed.json"),
   summaries: path.join(DATA_DIR, "summaries.json"),
   unlikePlan: path.join(DATA_DIR, "unlike-plan.txt"),
+  unbookmarkPlan: path.join(DATA_DIR, "unbookmark-plan.txt"),
   digest: path.join(OUT_DIR, "digest.md"),
 };
 
@@ -30,8 +31,9 @@ export interface Post {
   // 引用元・返信先の本文。x:refs で取る
   refs?: PostRef[];
   refsCheckedAt?: string;
-  // x:unlike で X のいいねを解除した日時。手元の記録とまとめには残す
+  // x:unlike / x:unbookmark で X の記録を外した日時。手元の記録には残し、まとめには出さない
   unlikedAt?: string;
+  unbookmarkedAt?: string;
   // 投稿者。x:authors が oEmbed で調べる。消された投稿は取れないので無い
   author?: Author;
   authorCheckedAt?: string;
@@ -96,6 +98,10 @@ export async function writeJson(file: string, value: unknown, options: { secret?
   if (options.secret) await chmod(tmp, 0o600);
   await rename(tmp, file);
 }
+
+/** その投稿に、ツールで外していないそのソースが今もあるか */
+export const isSourceActive = (p: Post, source: Source) =>
+  p.sources.includes(source) && !(source === "like" ? p.unlikedAt : p.unbookmarkedAt);
 
 export const loadPosts = () => readJson<PostStore>(paths.posts, { posts: {}, sources: {} });
 export const savePosts = (store: PostStore) => writeJson(paths.posts, store);

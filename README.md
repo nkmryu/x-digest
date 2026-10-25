@@ -115,6 +115,20 @@ pnpm x:pick --criteria "当てはまる: 個人的な近況や食事・天気の
 
 いまいいねしている投稿を 50 件ずつ Claude に読ませ、基準に当てはまるものを一覧にする。各行の末尾に選んだ理由が付く。`--skip <一覧>` で、別の一覧にある投稿を飛ばせる。確かめたら `pnpm x:unlike --apply --plan data/pick-plan.txt` で解除する。
 
+## ブックマークを外す
+
+`x:unlike` と同じ 2 段階で、X のブックマークを外す。
+
+```
+pnpm x:unbookmark --category <カテゴリー名>   # 1. 確認モード。data/unbookmark-plan.txt に一覧を書くだけ
+pnpm x:unbookmark --apply                     # 2. 件数を見せ、yes と打ったときだけ外す
+```
+
+- `--author`・`--plan` も `x:unlike` と同じに使える
+- 外した投稿は記録に残し、いいねも無ければまとめ・HTML・カレンダーに出さない。`--full --prune` の同期でも触らない
+- 権限 `bookmark.write` が要る。この機能を足す前にログインしていたら、`pnpm x:login` をやり直す
+- 費用は、料金表の「Bookmark」の行が 1 回 $0.005。作成と削除のどちらを指すかは書かれていない
+
 ## 投稿者を調べる
 
 ```

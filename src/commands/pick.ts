@@ -2,7 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { z } from "zod";
 import { DATA_NOTE, askJson, renderPosts } from "../claude.ts";
 import { cliArgs } from "../cli.ts";
-import { loadPosts } from "../store.ts";
+import { isSourceActive, loadPosts } from "../store.ts";
 import { formatPlan, parsePlan } from "../unlike.ts";
 
 const values = cliArgs({
@@ -22,7 +22,7 @@ for (const file of values.skip ?? []) for (const id of parsePlan(await readFile(
 
 const store = await loadPosts();
 const targets = Object.values(store.posts)
-  .filter((p) => p.sources.includes("like") && !p.unlikedAt && !skip.has(p.id))
+  .filter((p) => isSourceActive(p, "like") && !skip.has(p.id))
   .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
 console.log(`いまいいねしている ${targets.length} 件から選びます`);
 

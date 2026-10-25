@@ -87,6 +87,12 @@ export async function unlike(userId: string, postId: string): Promise<boolean> {
   return res.data?.liked === false;
 }
 
+/** 自分のブックマークを 1 件外す。bookmark.write の権限が要る */
+export async function unbookmark(userId: string, postId: string): Promise<boolean> {
+  const res = await xRequest<{ data?: { bookmarked?: boolean } }>("DELETE", `/users/${userId}/bookmarks/${postId}`, {});
+  return res.data?.bookmarked === false;
+}
+
 export async function fetchMe(): Promise<{ id: string; username: string }> {
   const res = await xGet<{ data: { id: string; username: string } }>("/users/me", {});
   return res.data;

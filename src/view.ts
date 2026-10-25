@@ -1,11 +1,11 @@
 import { OTHER } from "./categories.ts";
-import type { Category, Post } from "./store.ts";
+import { type Category, type Post, isSourceActive } from "./store.ts";
 
 export const SOURCE_LABEL = { bookmark: "ブックマーク", like: "いいね" } as const;
 
 /** 一覧に出す「ブックマーク・いいね」。x:unlike で解除したいいねは、そうとわかるようにする */
 export const sourceLabel = (p: Post) =>
-  p.sources.map((s) => (s === "like" && p.unlikedAt ? "いいね（解除済み）" : SOURCE_LABEL[s])).join("・");
+  p.sources.map((s) => (isSourceActive(p, s) ? SOURCE_LABEL[s] : `${SOURCE_LABEL[s]}（解除済み）`)).join("・");
 
 export interface Group {
   name: string;
@@ -14,11 +14,8 @@ export interface Group {
 
 const byDateDesc = (a: Post, b: Post) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
 
-/**
- * まとめに出す投稿か。いいねを解除してブックマークも無い投稿は、記録には残すが、まとめ・HTML・カレンダーには出さない。
- * ブックマークは外した記録を持たないので、あれば出す
- */
-export const isActive = (p: Post) => p.sources.some((s) => s === "bookmark" || (s === "like" && !p.unlikedAt));
+/** まとめに出す投稿か。いいねもブックマークもツールで外した投稿は、記録には残すが、まとめ・HTML・カレンダーには出さない */
+export const isActive = (p: Post) => p.sources.some((s) => isSourceActive(p, s));
 
 /** カテゴリーの並び順に、まとめに出す投稿を新しい順にまとめる。投稿の無いカテゴリーは出さない */
 export function groupPosts(categories: Category[], posts: Post[]): Group[] {

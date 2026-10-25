@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Category, Post } from "./store.ts";
-import { groupPosts, groupSections, isActive, partitionCited } from "./view.ts";
+import { groupPosts, groupSections, isActive, partitionCited, sourceLabel } from "./view.ts";
 
 const post = (id: string, category: string): Post => ({ id, text: "", urls: [], sources: ["like"], firstSeenAt: "", category });
 const categories: Category[] = [
@@ -46,4 +46,10 @@ test("いいねを解除してブックマークも無い投稿は、まとめ�
   const groups = groupPosts(categories, [...posts, unliked, unlikedButBookmarked]);
   const a1 = groups.find((g) => g.name === "a1")!;
   assert.deepEqual(a1.posts.map((p) => p.id).sort(), ["1", "10"]);
+});
+
+test("ブックマークをツールで外した投稿も、いいねが無ければまとめに出さず、印は「ブックマーク（解除済み）」", () => {
+  const p: Post = { ...post("11", "a1"), sources: ["bookmark"], unbookmarkedAt: "2026-10-25T00:00:00.000Z" };
+  assert.equal(isActive(p), false);
+  assert.equal(sourceLabel(p), "ブックマーク（解除済み）");
 });

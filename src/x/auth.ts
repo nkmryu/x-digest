@@ -3,8 +3,8 @@ import { paths, readJson, writeJson } from "../store.ts";
 
 const AUTHORIZE_URL = "https://x.com/i/oauth2/authorize";
 const TOKEN_URL = "https://api.x.com/2/oauth2/token";
-// like.write は x:unlike で使う
-export const SCOPES = ["tweet.read", "users.read", "bookmark.read", "like.read", "like.write", "offline.access"];
+// like.write は x:unlike、bookmark.write は x:unbookmark で使う
+export const SCOPES = ["tweet.read", "users.read", "bookmark.read", "bookmark.write", "like.read", "like.write", "offline.access"];
 
 export interface XToken {
   accessToken: string;
