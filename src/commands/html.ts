@@ -5,7 +5,7 @@ import { loadCategories, loadHtmlExcluded } from "../categories.ts";
 import { dropForeignLinks } from "../links.ts";
 import { type Post, type SummaryStore, OUT_DIR, loadPosts, paths, readJson } from "../store.ts";
 import { citedIds, escapeHtml, summaryToHtml } from "../summary-html.ts";
-import { type Group, groupPosts, groupSections, listText, partitionCited, sectionCount, sourceLabel } from "../view.ts";
+import { type Group, groupPosts, groupSections, isActive, listText, partitionCited, sectionCount, sourceLabel } from "../view.ts";
 import { postUrl } from "../x/api.ts";
 
 const categories = await loadCategories();
@@ -45,7 +45,7 @@ function chapter(g: Group, level: "h2" | "h3") {
   main.push(`
 <section id="cat-${i}">
   <${level} class="cat">${escapeHtml(g.name)} <span class="count">${g.posts.length} 件</span></${level}>
-  <div class="summary">${summaryToHtml(summary)}</div>
+  <div class="summary">${summaries[g.name] ? summaryToHtml(summary) : '<p class="note">要約はまだありません。pnpm x:digest で作ります。</p>'}</div>
   ${cited.length > 0 ? `<h4 class="sub">要約の根拠の投稿 <span class="count">${cited.length} 件</span></h4><div class="tweets">${cited.map((p) => tweet(p, `c-${p.id}`)).join("")}</div>` : ""}
   ${rest.length > 0 ? `<h4 class="sub">${cited.length > 0 ? "そのほかの投稿" : "投稿"} <span class="count">${rest.length} 件</span></h4><div class="tweets">${rest.map((p) => tweet(p)).join("")}</div>` : ""}
 </section>`);
@@ -103,6 +103,7 @@ section { background: var(--panel); border: 1px solid var(--line); border-radius
 .sub { margin: 24px 0 8px; font-size: 14px; font-weight: 600; color: var(--muted); }
 .summary ul { padding-left: 1.4em; }
 .summary li { margin: 4px 0; }
+.summary .note { color: var(--muted); font-size: 13px; }
 a.cite { display: inline-block; min-width: 1.6em; padding: 0 4px; border-radius: 4px; background: var(--line); color: var(--accent); text-align: center; text-decoration: none; font-size: 12px; line-height: 1.6; }
 .tweets { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; align-items: start; }
 .tweet { min-height: 80px; border-radius: 12px; scroll-margin-top: 16px; }
@@ -205,7 +206,7 @@ await mkdir(OUT_DIR, { recursive: true });
 await writeFile(file, html);
 console.log(`${file} に書き出しました${excluded.size > 0 ? `（外したカテゴリー: ${excluded.size} 個）` : ""}`);
 
-const entries = calendarEntries(posts, categories, excluded);
+const entries = calendarEntries(posts.filter(isActive), categories, excluded);
 const calendarCategories = categories.filter((c) => !excluded.has(c.name)).map((c) => ({ name: c.name, group: c.group ?? null }));
 const calendarFile = path.join(OUT_DIR, "calendar.html");
 await writeFile(calendarFile, renderCalendarHtml(entries, calendarCategories, `${updated} ／ ${entries.length} 件`));

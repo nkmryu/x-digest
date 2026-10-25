@@ -14,10 +14,17 @@ export interface Group {
 
 const byDateDesc = (a: Post, b: Post) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
 
-/** カテゴリーの並び順に、新しい順の投稿をまとめる。投稿の無いカテゴリーは出さない */
+/**
+ * まとめに出す投稿か。いいねを解除してブックマークも無い投稿は、記録には残すが、まとめ・HTML・カレンダーには出さない。
+ * ブックマークは外した記録を持たないので、あれば出す
+ */
+export const isActive = (p: Post) => p.sources.some((s) => s === "bookmark" || (s === "like" && !p.unlikedAt));
+
+/** カテゴリーの並び順に、まとめに出す投稿を新しい順にまとめる。投稿の無いカテゴリーは出さない */
 export function groupPosts(categories: Category[], posts: Post[]): Group[] {
+  const active = posts.filter(isActive);
   return [...categories.map((c) => c.name), OTHER]
-    .map((name) => ({ name, posts: posts.filter((p) => p.category === name).sort(byDateDesc) }))
+    .map((name) => ({ name, posts: active.filter((p) => p.category === name).sort(byDateDesc) }))
     .filter((g) => g.posts.length > 0);
 }
 

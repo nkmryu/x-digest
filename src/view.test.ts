@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Category, Post } from "./store.ts";
-import { groupPosts, groupSections, partitionCited } from "./view.ts";
+import { groupPosts, groupSections, isActive, partitionCited } from "./view.ts";
 
 const post = (id: string, category: string): Post => ({ id, text: "", urls: [], sources: ["like"], firstSeenAt: "", category });
 const categories: Category[] = [
@@ -36,4 +36,14 @@ test("根拠の投稿は要約の順に並び、残りには出ない。知ら�
   const { cited, rest } = partitionCited(ps, ["3", "9", "3", "1"]);
   assert.deepEqual(cited.map((p) => p.id), ["3", "1"]);
   assert.deepEqual(rest.map((p) => p.id), ["2"]);
+});
+
+test("いいねを解除してブックマークも無い投稿は、まとめに出さない", () => {
+  const unliked: Post = { ...post("9", "a1"), unlikedAt: "2026-10-24T00:00:00.000Z" };
+  const unlikedButBookmarked: Post = { ...unliked, id: "10", sources: ["bookmark", "like"] };
+  assert.equal(isActive(unliked), false);
+  assert.equal(isActive(unlikedButBookmarked), true);
+  const groups = groupPosts(categories, [...posts, unliked, unlikedButBookmarked]);
+  const a1 = groups.find((g) => g.name === "a1")!;
+  assert.deepEqual(a1.posts.map((p) => p.id).sort(), ["1", "10"]);
 });
