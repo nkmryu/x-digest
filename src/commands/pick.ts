@@ -13,7 +13,10 @@ const values = cliArgs({
   // この一覧にある投稿は飛ばす（別の解除を進めている最中など）
   skip: { type: "string", multiple: true },
   batch: { type: "string", default: "50" },
+  // 選ぶ対象。like（いいね）、bookmark（ブックマーク）、both（どちらかがある投稿）
+  source: { type: "string", default: "like" },
 });
+if (!["like", "bookmark", "both"].includes(values.source)) throw new Error("--source は like・bookmark・both のどれかです");
 if (!values.criteria) throw new Error("--criteria で選ぶ基準を書いてください");
 const batchSize = Number(values.batch);
 
@@ -21,10 +24,12 @@ const skip = new Set<string>();
 for (const file of values.skip ?? []) for (const id of parsePlan(await readFile(file, "utf8"))) skip.add(id);
 
 const store = await loadPosts();
+const inScope = (p: (typeof store.posts)[string]) =>
+  values.source === "both" ? isSourceActive(p, "like") || isSourceActive(p, "bookmark") : isSourceActive(p, values.source as "like" | "bookmark");
 const targets = Object.values(store.posts)
-  .filter((p) => isSourceActive(p, "like") && !skip.has(p.id))
+  .filter((p) => inScope(p) && !skip.has(p.id))
   .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
-console.log(`いまいいねしている ${targets.length} 件から選びます`);
+console.log(`対象 ${targets.length} 件（--source ${values.source}）から選びます`);
 
 const Schema = z.object({
   results: z.array(
@@ -57,4 +62,4 @@ for (let i = 0; i < targets.length; i += batchSize) {
 const posts = targets.filter((p) => picked.has(p.id));
 await writeFile(values.out, formatPlan(posts, picked));
 console.log(`候補 ${posts.length} 件を ${values.out} に書きました。X のいいねはまだ解除していません。`);
-console.log(`残したい投稿の行を消すか行頭に # を付けてから、pnpm x:unlike --apply --plan ${values.out} で解除してください。`);
+console.log(`残したい投稿の行を消すか行頭に # を付けてから、pnpm x:unlike --apply --plan ${values.out}（ブックマークは pnpm x:unbookmark --apply --plan ${values.out}）で解除してください。`);

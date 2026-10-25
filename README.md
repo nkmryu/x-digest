@@ -113,7 +113,7 @@ pnpm x:serve   # http://127.0.0.1:4173/digest.html で開く
 pnpm x:pick --criteria "当てはまる: 個人的な近況や食事・天気の報告。当てはまらない: 知見や情報の紹介" --out data/pick-plan.txt
 ```
 
-いまいいねしている投稿を 50 件ずつ Claude に読ませ、基準に当てはまるものを一覧にする。各行の末尾に選んだ理由が付く。`--skip <一覧>` で、別の一覧にある投稿を飛ばせる。確かめたら `pnpm x:unlike --apply --plan data/pick-plan.txt` で解除する。
+いまいいねしている投稿を 50 件ずつ Claude に読ませ、基準に当てはまるものを一覧にする。`--source bookmark` でブックマーク、`--source both` でどちらかがある投稿を対象にできる。各行の末尾に選んだ理由が付く。`--skip <一覧>` で、別の一覧にある投稿を飛ばせる。確かめたら `pnpm x:unlike --apply --plan data/pick-plan.txt` で解除する。
 
 ## ブックマークを外す
 
@@ -128,6 +128,15 @@ pnpm x:unbookmark --apply                     # 2. 件数を見せ、yes と打�
 - 外した投稿は記録に残し、いいねも無ければまとめ・HTML・カレンダーに出さない。`--full --prune` の同期でも触らない
 - 権限 `bookmark.write` が要る。この機能を足す前にログインしていたら、`pnpm x:login` をやり直す
 - 費用は、料金表の「Bookmark」の行が 1 回 $0.005。作成と削除のどちらを指すかは書かれていない
+
+## 一覧を HTML で確かめる
+
+```
+pnpm x:plan-html --plan data/pick-plan.txt          # out/candidates.html に書き出す
+pnpm x:serve                                        # http://127.0.0.1:4173/candidates.html
+```
+
+x:pick や確認モードが書いた一覧を、カテゴリーごとのカードで見る。理由・投稿者・いいねかブックマークかを出し、埋め込みはスクロールした分から読み込む。各カードの「取り消す」のチェックを外して「一覧を書き出す」を押すと、外した行を `#` にした一覧をダウンロードできる。それを元の一覧に上書きして `--apply` すれば、チェックした分だけ解除される。チェックの状態はブラウザに残る。
 
 ## 投稿者を調べる
 
