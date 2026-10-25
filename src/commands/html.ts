@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { renderAuthorsHtml } from "../authors-html.ts";
 import { calendarEntries, renderCalendarHtml } from "../calendar.ts";
 import { loadCategories, loadHtmlExcluded } from "../categories.ts";
 import { type Post, OUT_DIR, loadPosts } from "../store.ts";
@@ -116,7 +117,7 @@ section { background: var(--panel); border: 1px solid var(--line); border-radius
   <nav>
     <h1>X のまとめ</h1>
     <div class="updated">${updated} ／ ${shown} 件</div>
-    <p class="links"><a href="calendar.html">週ごとのカレンダーで見る</a></p>
+    <p class="links"><a href="calendar.html">カレンダーで見る</a> ・ <a href="authors.html">投稿者で見る</a></p>
     <ul>${nav}</ul>
   </nav>
   <main>${sections.join("")}</main>
@@ -194,3 +195,9 @@ const calendarCategories = categories.filter((c) => !excluded.has(c.name)).map((
 const calendarFile = path.join(OUT_DIR, "calendar.html");
 await writeFile(calendarFile, renderCalendarHtml(entries, calendarCategories, `${updated} ／ ${entries.length} 件`));
 console.log(`${calendarFile} に書き出しました`);
+
+// 投稿者ごとのページ。カテゴリーのまとめと同じ投稿（HTML から外したカテゴリーを除く）を出す
+const authorPosts = posts.filter((p) => isActive(p) && p.category && !excluded.has(p.category));
+const authorsFile = path.join(OUT_DIR, "authors.html");
+await writeFile(authorsFile, renderAuthorsHtml(authorPosts, updated));
+console.log(`${authorsFile} に書き出しました`);
