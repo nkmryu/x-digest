@@ -85,7 +85,7 @@ h2 { font-size: 15px; margin: 20px 0 8px; color: var(--muted); }
 <body>
 <div class="top">
   <h1>${escapeHtml(values.title)} <span class="note" id="count"></span></h1>
-  <a href="digest.html">← まとめに戻る</a>
+  <a href="./#/categories">← まとめに戻る</a>
   <select id="group"></select>
   <select id="source"><option value="">いいね・ブックマーク両方</option><option value="like">いいねだけ</option><option value="bookmark">ブックマークだけ</option></select>
   <input type="search" id="q" placeholder="本文・理由・投稿者で絞る">
