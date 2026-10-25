@@ -10,10 +10,14 @@ const values = cliArgs({
   full: { type: "boolean", default: false },
   // --full と一緒に使う。X の一覧に無くなった投稿を、手元の記録から消す
   prune: { type: "boolean", default: false },
+  // --prune と一緒に使う。消さずに、消す対象を表示するだけにする
+  "dry-run": { type: "boolean", default: false },
 });
 const full = values.full;
 const prune = values.prune;
+const dryRun = values["dry-run"];
 if (prune && !full) throw new Error("--prune は --full と一緒に指定してください。一覧を最後まで読まないと、無くなった投稿を見つけられません");
+if (dryRun && !prune) throw new Error("--dry-run は --prune と一緒に指定してください");
 const max = values.max ? Number(values.max) : Infinity;
 const sources = (values.source ?? ["bookmark", "like"]) as Source[];
 
@@ -84,7 +88,16 @@ for (const source of sources) {
   }
   state.pending = pending.length > 0 ? pending : undefined;
   // 一覧を最後まで読めたときだけ消す。途中で止まった回に消すと、読んでいない分まで消えてしまう
-  if (prune && !stopped && pending.length === 0) {
+  if (prune && !stopped && pending.length === 0 && dryRun) {
+    // 記録を変えずに、消す対象だけを出す
+    const copy: typeof store = JSON.parse(JSON.stringify(store));
+    const result = pruneSource(copy, source, tally.seen);
+    console.log(`${source}: X の一覧に無かった投稿 ${result.removed.length} 件（--dry-run なので消していません）`);
+    for (const id of result.removed) {
+      const p = store.posts[id]!;
+      console.log(`  ${id}\t${p.createdAt?.slice(0, 10) ?? ""}\t[${p.category ?? "未分類"}]\t${p.text.replace(/\s+/g, " ").slice(0, 50)}`);
+    }
+  } else if (prune && !stopped && pending.length === 0) {
     const result = pruneSource(store, source, tally.seen);
     console.log(`${source}: X の一覧に無かった ${result.removed.length} 件からこのソースを外し、うち ${result.deleted.length} 件は記録ごと消しました`);
   } else if (prune) {

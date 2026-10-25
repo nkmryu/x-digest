@@ -57,21 +57,6 @@ export function groupSections(categories: Category[], groups: Group[]): Section[
 
 export const sectionCount = (s: Section) => s.groups.reduce((n, g) => n + g.posts.length, 0);
 
-/** 投稿を、要約の根拠に挙げた順の cited と、それ以外の rest に分ける。同じ投稿が両方に出ない */
-export function partitionCited(posts: Post[], citedIds: string[]): { cited: Post[]; rest: Post[] } {
-  const byId = new Map(posts.map((p) => [p.id, p]));
-  const seen = new Set<string>();
-  const cited: Post[] = [];
-  for (const id of citedIds) {
-    const p = byId.get(id);
-    if (p && !seen.has(id)) {
-      seen.add(id);
-      cited.push(p);
-    }
-  }
-  return { cited, rest: posts.filter((p) => !seen.has(p.id)) };
-}
-
 // 本文が空の投稿（記事・画像だけ・引用だけ）も、一覧で何の投稿かわかるようにする
 export const listText = (p: Post) =>
   p.text.replace(/https:\/\/t\.co\/\S+/g, "").trim() ||
