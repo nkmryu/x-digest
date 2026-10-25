@@ -9,8 +9,8 @@ export interface PagePost {
   id: string;
   /** 書かれた日（日本時間ではなく createdAt の先頭 10 文字） */
   date: string;
-  /** カレンダーの置き場所。日時の無い投稿は null */
-  cal: { week: string; w: number; h: number; m: number } | null;
+  /** カレンダーの置き場所（日本時間の日付・月曜始まりの曜日・時・分）。日時の無い投稿は null */
+  cal: { date: string; w: number; h: number; m: number } | null;
   cat: string;
   grp: string | null;
   src: string;
@@ -49,7 +49,7 @@ export function pageData(categories: Category[], posts: Post[], excluded: Set<st
       return {
         id: p.id,
         date: p.createdAt?.slice(0, 10) ?? "",
-        cal: cell && { week: cell.week, w: cell.w, h: cell.h, m: cell.m },
+        cal: cell && { date: cell.date, w: cell.w, h: cell.h, m: cell.m },
         cat: p.category!,
         grp: groupOf.get(p.category!) ?? null,
         src: sourceLabel(p),
@@ -94,10 +94,11 @@ export function renderIndexHtml(data: PageData, updated: string): string {
 :root {
   --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e3e3de; --accent: #1d6fd8;
   --g0: #3b82f6; --g1: #10b981; --g2: #f59e0b; --g3: #a855f7; --g4: #ef4444; --g5: #6b7280;
+  --sat: #2563eb; --sun: #dc2626;
   --top: 56px; --side: 280px;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #151514; --panel: #1e1e1c; --text: #ecece8; --muted: #9a9a93; --line: #33332f; --accent: #6aa8ff; }
+  :root { --bg: #151514; --panel: #1e1e1c; --text: #ecece8; --muted: #9a9a93; --line: #33332f; --accent: #6aa8ff; --sat: #8ab4ff; --sun: #ff8585; }
 }
 * { box-sizing: border-box; }
 html { scroll-padding-top: calc(var(--top) + 12px); }
@@ -167,28 +168,36 @@ section { background: var(--panel); border: 1px solid var(--line); border-radius
 .card .embed > .twitter-tweet { margin: 0 !important; }
 .cat .embed-all { margin-left: auto; padding: 3px 10px; font-size: 12px; font-weight: normal; }
 
-/* カレンダー */
+/* カレンダー（月表示）。土曜は青、日曜は赤で、マスの背景も薄く色を付ける */
 .cal-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 12px; }
-.cal-bar .week { font-weight: 600; font-size: 15px; }
+.cal-bar .month { font-weight: 700; font-size: 20px; min-width: 7em; text-align: center; }
 .cal-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; }
 .cal { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
-.cal table { border-collapse: collapse; width: 100%; min-width: 820px; table-layout: fixed; }
-.cal th { position: sticky; top: var(--top); z-index: 1; background: var(--panel); font-size: 12px; font-weight: 600; padding: 8px 4px; border-bottom: 1px solid var(--line); }
-.cal th .d { display: block; color: var(--muted); font-weight: normal; }
-.cal th.hour, .cal td.hour { width: 44px; text-align: right; padding-right: 6px; color: var(--muted); font-size: 11px; vertical-align: top; }
-.cal td { border-top: 1px solid var(--line); border-left: 1px solid var(--line); vertical-align: top; padding: 2px; height: 28px; }
-.ev { display: block; width: 100%; text-align: left; margin: 0 0 2px; padding: 3px 6px; border: 0; border-left: 3px solid var(--c); border-radius: 4px; background: color-mix(in srgb, var(--c) 16%, var(--panel)); color: var(--text); font-size: 11px; line-height: 1.35; cursor: pointer; }
-.ev .cat { display: block; font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
-.ev .body { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.ev b { font-weight: 600; margin-right: 4px; }
+.cal table { border-collapse: collapse; width: 100%; min-width: 720px; table-layout: fixed; }
+.cal th { font-size: 12px; font-weight: 600; padding: 8px 4px; border-bottom: 1px solid var(--line); color: var(--muted); }
+.cal th.sat { color: var(--sat); }
+.cal th.sun { color: var(--sun); }
+.cal td { border-top: 1px solid var(--line); border-left: 1px solid var(--line); vertical-align: top; padding: 4px; height: 100px; }
+.cal td:first-child { border-left: 0; }
+.cal td.sat { background: color-mix(in srgb, var(--sat) 7%, transparent); }
+.cal td.sun { background: color-mix(in srgb, var(--sun) 7%, transparent); }
+.cal td .d { font-size: 12px; font-weight: 600; margin: 0 0 3px 2px; }
+.cal td.sat .d { color: var(--sat); }
+.cal td.sun .d { color: var(--sun); }
+.cal td.out .d { color: var(--muted); font-weight: normal; }
+.cal td.out .ev { opacity: 0.55; }
+.ev { display: block; width: 100%; text-align: left; margin: 0 0 2px; padding: 2px 6px; border: 0; border-left: 3px solid var(--c); border-radius: 4px; background: color-mix(in srgb, var(--c) 16%, var(--panel)); color: var(--text); font-size: 11px; line-height: 1.4; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev b { font-weight: 600; margin-right: 4px; color: var(--muted); }
 .ev.on { outline: 2px solid var(--text); }
+.ev.more { display: none; }
+.cal td.open .ev.more { display: block; }
+.more-btn { border: 0; background: none; color: var(--accent); font-size: 11px; padding: 0 6px; }
 .panel { position: sticky; top: calc(var(--top) + 16px); align-self: start; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-height: 200px; }
 .panel .card { border: 0; padding: 0; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--muted); margin-bottom: 14px; }
 .legend span { display: flex; align-items: center; gap: 5px; }
 .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; background: var(--c); }
-.side li.week { font-size: 12px; }
-.side li.week.off { opacity: 0.45; }
+.side li.month.off { opacity: 0.45; }
 
 @media (max-width: 1100px) {
   .cal-wrap { grid-template-columns: 1fr; }
@@ -452,28 +461,37 @@ function buildAuthors(t) {
   emptyBox(t);
 }
 
-// ---- カレンダー。週を左の一覧で選び、枠を押すと右に埋め込みを出す
+// ---- カレンダー。月ごとに日のマスへ投稿を置く。左の一覧は年ごとの月。マスの投稿を押すと右にカードを出す
 var cal = (function () {
+  var DAY = 86400000;
   var entries = D.posts.filter(function (p) { return p.cal; });
-  var byWeek = {};
-  entries.forEach(function (p) { (byWeek[p.cal.week] = byWeek[p.cal.week] || []).push(p); });
-  var weeks = Object.keys(byWeek).sort().reverse();
-  var state = { week: null, filter: "", query: "", selected: null };
+  var byMonth = {}, byDay = {};
+  entries.forEach(function (p) {
+    var mo = p.cal.date.slice(0, 7);
+    (byMonth[mo] = byMonth[mo] || []).push(p);
+    (byDay[p.cal.date] = byDay[p.cal.date] || []).push(p);
+  });
+  var months = Object.keys(byMonth).sort().reverse();
+  var state = { month: null, filter: "", query: "", selected: null };
   var ui = null;
   var groupIndex = function (g) { var i = D.groups.indexOf(g); return i < 0 ? 5 : i; };
   var colorOf = function (g) { return "var(--g" + groupIndex(g) + ")"; };
-  function weekLabel(monday) {
-    var p = monday.split("-"), end = new Date(Date.UTC(+p[0], p[1] - 1, +p[2] + 6));
-    return p[0] + "/" + p[1] + "/" + p[2] + " 〜 " + pad(end.getUTCMonth() + 1) + "/" + pad(end.getUTCDate());
-  }
-  function dayLabel(monday, w) {
-    var p = monday.split("-"), d = new Date(Date.UTC(+p[0], p[1] - 1, +p[2] + w));
-    return (d.getUTCMonth() + 1) + "/" + d.getUTCDate();
-  }
+  var monthLabel = function (mo) { return mo.slice(0, 4) + "年 " + Number(mo.slice(5)) + "月"; };
+  var byTime = function (a, b) { return a.cal.h * 60 + a.cal.m - (b.cal.h * 60 + b.cal.m); };
   function matches(p) {
     if (state.query && p.key.indexOf(state.query) < 0) return false;
     if (state.filter === "") return true;
     return state.filter.slice(0, 2) === "g:" ? p.grp === state.filter.slice(2) : p.cat === state.filter.slice(2);
+  }
+  // 月の表に出す日。月曜始まりで、1 日を含む週から末日を含む週まで
+  function daysOf(mo) {
+    var y = +mo.slice(0, 4), m = +mo.slice(5);
+    var first = Date.UTC(y, m - 1, 1), last = Date.UTC(y, m, 0);
+    var start = first - ((new Date(first).getUTCDay() + 6) % 7) * DAY;
+    var end = last + (6 - (new Date(last).getUTCDay() + 6) % 7) * DAY;
+    var days = [];
+    for (var t = start; t <= end; t += DAY) days.push(new Date(t).toISOString().slice(0, 10));
+    return days;
   }
   function build(t) {
     t.side.appendChild(el("h2", {}, "絞り込み"));
@@ -496,25 +514,26 @@ var cal = (function () {
       legend.appendChild(sp);
     });
     t.side.appendChild(legend);
-    t.side.appendChild(el("h2", {}, fmt(weeks.length) + " 週"));
-    var ul = el("ul");
-    weeks.forEach(function (wk) {
-      var li = el("li", { class: "week", "data-week": wk });
-      li.appendChild(el("a", { href: href("calendar", wk) }, weekLabel(wk)));
-      li.appendChild(el("span", { class: "count" }, fmt(byWeek[wk].length)));
+    t.side.appendChild(el("h2", {}, fmt(months.length) + " か月"));
+    var ul = el("ul"), year = null;
+    months.forEach(function (mo) {
+      if (mo.slice(0, 4) !== year) { year = mo.slice(0, 4); ul.appendChild(el("li", { class: "group" }, year + "年")); }
+      var li = el("li", { class: "month child", "data-month": mo });
+      li.appendChild(el("a", { href: href("calendar", mo) }, Number(mo.slice(5)) + "月"));
+      li.appendChild(el("span", { class: "count" }, fmt(byMonth[mo].length)));
       ul.appendChild(li);
     });
     t.side.appendChild(ul);
 
     var bar = el("div", { class: "cal-bar" });
-    var prev = el("button", { type: "button" }, "‹ 前の週");
-    var next = el("button", { type: "button" }, "次の週 ›");
-    var label = el("span", { class: "week" });
+    var prev = el("button", { type: "button" }, "‹ 前の月");
+    var next = el("button", { type: "button" }, "次の月 ›");
+    var label = el("h2", { class: "month" });
     var hits = el("span", { class: "count" });
-    prev.addEventListener("click", function () { var i = weeks.indexOf(state.week); if (i < weeks.length - 1) location.hash = href("calendar", weeks[i + 1]); });
-    next.addEventListener("click", function () { var i = weeks.indexOf(state.week); if (i > 0) location.hash = href("calendar", weeks[i - 1]); });
-    bar.appendChild(prev); bar.appendChild(label); bar.appendChild(hits); bar.appendChild(next);
-    bar.appendChild(el("span", { class: "count" }, "投稿が書かれた日時（日本時間）で置いています"));
+    prev.addEventListener("click", function () { var i = months.indexOf(state.month); if (i < months.length - 1) location.hash = href("calendar", months[i + 1]); });
+    next.addEventListener("click", function () { var i = months.indexOf(state.month); if (i > 0) location.hash = href("calendar", months[i - 1]); });
+    bar.appendChild(prev); bar.appendChild(label); bar.appendChild(next); bar.appendChild(hits);
+    bar.appendChild(el("span", { class: "count" }, "投稿が書かれた日（日本時間）に置いています"));
     t.content.appendChild(bar);
     var wrap = el("div", { class: "cal-wrap" });
     var table = el("table");
@@ -526,49 +545,50 @@ var cal = (function () {
     t.content.appendChild(wrap);
     ui = { ul: ul, prev: prev, next: next, label: label, hits: hits, table: table, panel: panel };
   }
+  // 1 日のマス。5 件目からは「+n 件」で開く
+  function dayCell(d, col) {
+    var inMonth = d.slice(0, 7) === state.month;
+    var cls = ["day", col === 5 ? "sat" : "", col === 6 ? "sun" : "", inMonth ? "" : "out"].filter(Boolean).join(" ");
+    var td = el("td", { class: cls });
+    td.appendChild(el("div", { class: "d" }, String(Number(d.slice(8)))));
+    var list = (byDay[d] || []).filter(matches).sort(byTime);
+    list.forEach(function (p, idx) {
+      var ev = el("button", { type: "button", class: "ev" + (p.id === state.selected ? " on" : "") + (idx >= 4 ? " more" : ""), style: "--c:" + colorOf(p.grp), title: p.cat + " ・ " + p.src + "\\n" + p.tx });
+      ev.appendChild(el("b", {}, pad(p.cal.h) + ":" + pad(p.cal.m)));
+      ev.appendChild(document.createTextNode(p.tx));
+      ev.addEventListener("click", function () { show(p, ev); });
+      td.appendChild(ev);
+    });
+    if (list.length > 4) {
+      var rest = "+" + fmt(list.length - 4) + " 件";
+      var more = el("button", { type: "button", class: "more-btn" }, rest);
+      more.addEventListener("click", function () { more.textContent = td.classList.toggle("open") ? "たたむ" : rest; });
+      td.appendChild(more);
+    }
+    return td;
+  }
   function render() {
-    if (!ui || !state.week) return;
-    var i = weeks.indexOf(state.week);
-    ui.prev.disabled = i >= weeks.length - 1;
+    if (!ui || !state.month) return;
+    var i = months.indexOf(state.month);
+    ui.prev.disabled = i >= months.length - 1;
     ui.next.disabled = i <= 0;
-    ui.label.textContent = weekLabel(state.week);
-    var items = byWeek[state.week].filter(matches);
-    ui.hits.textContent = fmt(items.length) + " 件";
-    ui.ul.querySelectorAll("li").forEach(function (li) {
-      li.classList.toggle("active", li.dataset.week === state.week);
-      li.classList.toggle("off", !byWeek[li.dataset.week].some(matches));
+    ui.label.textContent = monthLabel(state.month);
+    ui.hits.textContent = fmt(byMonth[state.month].filter(matches).length) + " 件";
+    ui.ul.querySelectorAll("li.month").forEach(function (li) {
+      li.classList.toggle("active", li.dataset.month === state.month);
+      li.classList.toggle("off", !byMonth[li.dataset.month].some(matches));
     });
     var active = ui.ul.querySelector("li.active");
     if (active && typeof active.scrollIntoView === "function") active.scrollIntoView({ block: "nearest" });
-    var cells = {};
-    items.forEach(function (p) { (cells[p.cal.w + "-" + p.cal.h] = cells[p.cal.w + "-" + p.cal.h] || []).push(p); });
     var table = ui.table;
     table.textContent = "";
     var head = el("tr");
-    head.appendChild(el("th", { class: "hour" }));
-    for (var w = 0; w < 7; w++) {
-      var th = el("th", {}, D.weekdays[w]);
-      th.appendChild(el("span", { class: "d" }, dayLabel(state.week, w)));
-      head.appendChild(th);
-    }
+    for (var w = 0; w < 7; w++) head.appendChild(el("th", { class: w === 5 ? "sat" : w === 6 ? "sun" : null }, D.weekdays[w]));
     table.appendChild(head);
-    for (var h = 0; h < 24; h++) {
+    var days = daysOf(state.month);
+    for (var r = 0; r < days.length; r += 7) {
       var tr = el("tr");
-      tr.appendChild(el("td", { class: "hour" }, h + ":00"));
-      for (var w2 = 0; w2 < 7; w2++) {
-        var td = el("td");
-        (cells[w2 + "-" + h] || []).sort(function (a, b) { return a.cal.m - b.cal.m; }).forEach(function (p) {
-          var ev = el("button", { type: "button", class: "ev" + (p.id === state.selected ? " on" : ""), style: "--c:" + colorOf(p.grp), title: p.cat + " ・ " + p.src });
-          ev.appendChild(el("span", { class: "cat" }, p.cat));
-          var body = el("span", { class: "body" });
-          body.appendChild(el("b", {}, pad(p.cal.h) + ":" + pad(p.cal.m)));
-          body.appendChild(document.createTextNode(p.tx));
-          ev.appendChild(body);
-          ev.addEventListener("click", function () { show(p, ev); });
-          td.appendChild(ev);
-        });
-        tr.appendChild(td);
-      }
+      for (var c = 0; c < 7; c++) tr.appendChild(dayCell(days[r + c], c));
       table.appendChild(tr);
     }
   }
@@ -581,12 +601,13 @@ var cal = (function () {
   }
   return {
     build: build,
-    weeks: weeks.length,
-    // 週を指定して開く。無い週や指定なしなら、前に見ていた週か一番新しい週
+    months: months.length,
+    // 月（2026-10）を指定して開く。日付（2026-10-19）ならその月。無い月や指定なしなら、前に見ていた月か一番新しい月
     goto: function (arg) {
-      if (arg && byWeek[arg]) state.week = arg;
-      else if (!state.week) state.week = weeks[0] || null;
-      if (state.week) history.replaceState(null, "", href("calendar", state.week));
+      var mo = arg ? arg.slice(0, 7) : null;
+      if (mo && byMonth[mo]) state.month = mo;
+      else if (!state.month) state.month = months[0] || null;
+      if (state.month) history.replaceState(null, "", href("calendar", state.month));
       render();
     },
     setQuery: function (w) { state.query = w; render(); },
@@ -603,7 +624,7 @@ TABS.forEach(function (n) {
 var current = null;
 byId("badge-categories").textContent = fmt(D.sections.reduce(function (n, s) { return n + s.cats.length; }, 0));
 byId("badge-authors").textContent = fmt(D.authors.filter(function (a) { return a.handle !== null; }).length);
-byId("badge-calendar").textContent = fmt(cal.weeks) + " 週";
+byId("badge-calendar").textContent = fmt(cal.months) + " か月";
 function parseHash() {
   var m = /^#\\/(categories|authors|calendar)(?:\\/(.*))?$/.exec(location.hash);
   if (!m) return null;

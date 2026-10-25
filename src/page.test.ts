@@ -24,11 +24,11 @@ test("HTML から外したカテゴリー・分類の無い投稿・解除済み
     new Set(["hidden"]),
   );
   assert.deepEqual(
-    data.posts.map((p) => [p.id, p.cat, p.grp, p.src, p.ah, p.cal?.week ?? null]),
+    data.posts.map((p) => [p.id, p.cat, p.grp, p.src, p.ah, p.cal?.date ?? null]),
     [
-      ["1", "a", "A", "いいね", "a_san", "2026-10-19"],
+      ["1", "a", "A", "いいね", "a_san", "2026-10-24"],
       ["3", "a", "A", "いいね", null, null],
-      ["5", "c", null, "ブックマーク・いいね（解除済み）", null, "2026-10-19"],
+      ["5", "c", null, "ブックマーク・いいね（解除済み）", null, "2026-10-23"],
     ],
   );
   assert.deepEqual(data.sections, [
