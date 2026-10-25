@@ -17,6 +17,7 @@
     "x:html": "node --env-file-if-exists=.env --import tsx src/commands/html.ts",
     "x:serve": "python3 -m http.server 4173 --bind 127.0.0.1 --directory out",
     "x:update": "pnpm x:fetch && pnpm x:classify && pnpm x:html",
+    "x:sync": "pnpm x:fetch --full --prune && pnpm x:classify && pnpm x:authors && pnpm x:html",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test 'src/**/*.test.ts'"
   },

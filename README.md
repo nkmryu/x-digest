@@ -71,9 +71,11 @@ pnpm x:fetch --full --prune --dry-run  # 消さずに、X に無くなった投�
 
 ```
 pnpm x:update   # fetch → classify → html（要約は作らない。digest.md が要るときは pnpm x:digest を別に実行する）
+pnpm x:sync     # fetch --full --prune → classify → authors → html（X で外した分も手元から消す）
 ```
 
-- fetch は、取得済みの投稿に当たったところで止める
+- x:update の fetch は、取得済みの投稿に当たったところで止める。新着を足すだけで、X で外した分は消さない
+- x:sync は一覧を最後まで読み直すので、X でいいね・ブックマークを外した分も手元と HTML から消える。全件読むため、同じ UTC 日の 2 回目以降でなければ約 $0.001 × 件数かかる
 - classify は、未分類の投稿だけを分類する
 - x:digest は x:update には入っていない。digest.md と要約が要るときに別に実行すると、投稿が増減したカテゴリーだけ要約を作り直す（Claude を呼ぶ）
 
