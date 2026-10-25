@@ -49,6 +49,24 @@ test("HTML から外したカテゴリー・分類の無い投稿・解除済み
   ]);
 });
 
+test("本文は t.co のリンクを除いた全文で、リンク先・引用元・記事の題名も持つ", () => {
+  const data = pageData(
+    [{ name: "a", description: "" }],
+    [
+      post("1", { category: "a", text: "一行目\n二行目 https://t.co/abc", urls: ["https://example.com/x"], refs: [{ type: "quoted", id: "9", text: "引用元" }], articleTitle: "記事名" }),
+      post("2", { category: "a", text: "https://t.co/only" }),
+    ],
+    new Set(),
+  );
+  assert.deepEqual(
+    data.posts.map((p) => [p.tx, p.urls, p.ref, p.art]),
+    [
+      ["一行目\n二行目", ["https://example.com/x"], { type: "quoted", text: "引用元" }, "記事名"],
+      ["", [], null, null],
+    ],
+  );
+});
+
 test("本文や投稿者の名前に </script> や HTML があっても、ページの script を抜け出さず、文字のまま扱う", () => {
   const data = pageData(
     [{ name: "a", description: "" }],
@@ -59,4 +77,11 @@ test("本文や投稿者の名前に </script> や HTML があっても、ペー
   assert.equal(html.match(/<\/script>/g)?.length, 1);
   assert.doesNotMatch(html, /<img src=x/);
   assert.doesNotMatch(html, /<b>x<\/b>/);
+});
+
+test("ページの script は、そのまま JavaScript として読める（テンプレートのエスケープ漏れを止める）", () => {
+  const html = renderIndexHtml(pageData([{ name: "a", description: "" }], [post("1", { category: "a" })], new Set()), "更新");
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]!);
+  assert.equal(scripts.length, 1);
+  assert.doesNotThrow(() => new Function(scripts[0]!));
 });

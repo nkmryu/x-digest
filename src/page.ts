@@ -2,7 +2,7 @@ import { groupByAuthor } from "./authors.ts";
 import { WEEKDAYS, calendarCell } from "./calendar.ts";
 import type { Category, Post } from "./store.ts";
 import { escapeHtml } from "./summary-html.ts";
-import { groupPosts, groupSections, listText, sourceLabel } from "./view.ts";
+import { groupPosts, groupSections, sourceLabel } from "./view.ts";
 
 /** ページに埋める 1 投稿。キー名は短くして、JSON の大きさを抑える */
 export interface PagePost {
@@ -17,7 +17,13 @@ export interface PagePost {
   /** 投稿者の表示名と ID。調べていない投稿は null */
   an: string | null;
   ah: string | null;
+  /** 本文（t.co のリンクは除く）。リンク先は urls に展開済みのものを持つ */
   tx: string;
+  urls: string[];
+  /** 引用元・返信先の先頭 1 件 */
+  ref: { type: string; text: string } | null;
+  /** 記事の題名 */
+  art: string | null;
 }
 
 export interface PageData {
@@ -36,10 +42,7 @@ export function pageData(categories: Category[], posts: Post[], excluded: Set<st
   const groupOf = new Map(categories.map((c) => [c.name, c.group ?? null]));
   const groups = groupPosts(categories, posts).filter((g) => !excluded.has(g.name));
   const shown = groups.flatMap((g) => g.posts);
-  const snippet = (p: Post) => {
-    const flat = listText(p).replace(/\s+/g, " ").trim();
-    return flat.length > 140 ? `${flat.slice(0, 140)}…` : flat;
-  };
+  const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}…` : text);
   return {
     posts: shown.map((p) => {
       const cell = p.createdAt ? calendarCell(p.createdAt) : null;
@@ -52,7 +55,10 @@ export function pageData(categories: Category[], posts: Post[], excluded: Set<st
         src: sourceLabel(p),
         an: p.author?.name ?? null,
         ah: p.author?.handle ?? null,
-        tx: snippet(p),
+        tx: p.text.replace(/https:\/\/t\.co\/\S+/g, "").trim(),
+        urls: p.urls,
+        ref: p.refs?.[0] ? { type: p.refs[0].type, text: clip(p.refs[0].text, 300) } : null,
+        art: p.articleTitle ?? null,
       };
     }),
     sections: groupSections(categories, groups).map((s) => ({
@@ -80,6 +86,10 @@ export function renderIndexHtml(data: PageData, updated: string): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>X のまとめ</title>
+<link rel="preconnect" href="https://platform.twitter.com">
+<link rel="preconnect" href="https://cdn.syndication.twimg.com">
+<link rel="preconnect" href="https://abs.twimg.com">
+<link rel="preconnect" href="https://pbs.twimg.com">
 <style>
 :root {
   --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e3e3de; --accent: #1d6fd8;
@@ -135,17 +145,25 @@ section { background: var(--panel); border: 1px solid var(--line); border-radius
 .note { color: var(--muted); font-size: 13px; margin: -4px 0 12px; }
 .empty { color: var(--muted); text-align: center; padding: 48px 0; }
 
-/* 投稿のカード。頭の行は埋め込みが読めた後も残し、投稿者・カテゴリーへ飛べるようにする */
+/* 投稿のカード。手元の本文で組み、X の埋め込みはボタンで読む。頭の行は埋め込みの後も残す */
 .tweets { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; align-items: start; }
-.card .head { display: flex; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin: 0 2px 4px; }
+.card { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px 12px; min-width: 0; }
+.card .head { display: flex; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
 .card .head > * + *::before { content: "・"; margin: 0 5px; color: var(--muted); }
 .card .head a { color: var(--accent); text-decoration: none; }
 .card .head a:hover { text-decoration: underline; }
-.tweet { min-height: 60px; border-radius: 12px; }
-.tweet .fallback { padding: 12px 14px; border: 1px dashed var(--line); border-radius: 12px; font-size: 13px; overflow-wrap: anywhere; }
-.tweet.loaded .fallback { display: none; }
-.tweet .fallback a { font-size: 12px; }
-.tweet > .twitter-tweet { margin: 0 !important; }
+.card .author { font-weight: 600; font-size: 14px; }
+.card .author span { font-weight: normal; color: var(--muted); margin-left: 6px; font-size: 12px; }
+.card .text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; margin: 4px 0; }
+.card .text.clamp { display: -webkit-box; -webkit-line-clamp: 8; -webkit-box-orient: vertical; overflow: hidden; }
+.card .more { border: 0; background: none; color: var(--accent); padding: 0; font-size: 12px; }
+.card .ref { margin: 8px 0; padding: 6px 10px; border-left: 3px solid var(--line); color: var(--muted); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.card .links a { display: block; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .foot { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-size: 12px; }
+.card .foot button { padding: 3px 10px; font-size: 12px; }
+.card.embedded .body, .card.embedded .foot { display: none; }
+.card .embed > .twitter-tweet { margin: 0 !important; }
+.cat .embed-all { margin-left: auto; padding: 3px 10px; font-size: 12px; font-weight: normal; }
 
 /* カレンダー */
 .cal-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 12px; }
@@ -163,11 +181,7 @@ section { background: var(--panel); border: 1px solid var(--line); border-radius
 .ev b { font-weight: 600; margin-right: 4px; }
 .ev.on { outline: 2px solid var(--text); }
 .panel { position: sticky; top: calc(var(--top) + 16px); align-self: start; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-height: 200px; }
-.panel .meta { display: flex; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin-bottom: 8px; }
-.panel .meta > * + *::before { content: "・"; margin: 0 5px; }
-.panel .meta a { text-decoration: none; }
-.panel .fallback { font-size: 13px; overflow-wrap: anywhere; }
-.panel > .twitter-tweet { margin: 0 !important; }
+.panel .card { border: 0; padding: 0; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--muted); margin-bottom: 14px; }
 .legend span { display: flex; align-items: center; gap: 5px; }
 .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; background: var(--c); }
@@ -239,33 +253,104 @@ function el(tag, attrs, text) {
 function href(tab, arg) { return "#/" + tab + (arg ? "/" + encodeURIComponent(arg) : ""); }
 function statusUrl(id) { return "https://x.com/i/status/" + id; }
 
-// ---- 埋め込み。画面に近づいた投稿から読み込む
-var io = new IntersectionObserver(function (entries) {
-  entries.forEach(function (e) { if (e.isIntersecting) { io.unobserve(e.target); embed(e.target); } });
-}, { rootMargin: "600px" });
-function embed(box) {
-  if (box.dataset.started) return;
-  box.dataset.started = "1";
+// ---- X の埋め込み。開いた瞬間に出る自前カードを既定にし、埋め込みはボタンで、同時に 4 件まで順に読む
+var EMBED_LIMIT = 4, EMBED_TIMEOUT = 30000;
+var embedQueue = [], embedRunning = 0;
+var embedOpts = { theme: theme, lang: "ja", dnt: true, conversation: "none" };
+function setEmbedButton(c, text, disabled) {
+  var b = c.querySelector(".embed-btn");
+  if (b) { b.textContent = text; b.disabled = disabled; }
+}
+function requestEmbed(c, first) {
+  if (c.dataset.embed) return;
+  c.dataset.embed = "queued";
+  c.classList.add("embedding");
+  setEmbedButton(c, "読み込み中…", true);
+  if (first) embedQueue.unshift(c); else embedQueue.push(c);
+  pumpEmbeds();
+}
+function pumpEmbeds() {
+  while (embedRunning < EMBED_LIMIT && embedQueue.length > 0) startEmbed(embedQueue.shift());
+}
+function startEmbed(c) {
+  embedRunning++;
+  var done = false;
+  function finish(w) {
+    if (done) return;
+    done = true;
+    embedRunning--;
+    c.classList.remove("embedding");
+    c.dataset.embed = w ? "done" : "failed";
+    if (w) c.classList.add("embedded"); else setEmbedButton(c, "埋め込みを読めませんでした", true);
+    var s = c.closest("section");
+    if (s) updateSectionEmbed(s);
+    pumpEmbeds();
+  }
+  // widgets.js が読めないとき（遮断など）に待ち続けないよう、時間で区切る
+  var timer = setTimeout(function () { finish(null); }, EMBED_TIMEOUT);
   twttr.ready(function (t) {
-    t.widgets.createTweet(box.dataset.id, box, { theme: theme, lang: "ja", dnt: true, conversation: "none" }).then(function (w) { if (w) box.classList.add("loaded"); });
+    t.widgets.createTweet(c.dataset.id, c.querySelector(".embed"), embedOpts).then(function (w) {
+      clearTimeout(timer);
+      if (done) { if (w) c.classList.add("embedded"); return; }
+      finish(w);
+    });
   });
+}
+function updateSectionEmbed(s) {
+  var b = s.querySelector(".embed-all");
+  if (!b) return;
+  var busy = s.querySelectorAll(".card.embedding").length;
+  var left = s.querySelectorAll(".card:not([data-embed]):not(.hidden)").length;
+  if (busy > 0) { b.disabled = true; b.textContent = "埋め込み中 " + fmt(busy) + " 件"; }
+  else if (left === 0) { b.disabled = true; b.textContent = "埋め込んだ"; }
+  else { b.disabled = false; b.textContent = "この章を埋め込む"; }
+}
+function embedSection(s) {
+  s.querySelectorAll(".card:not([data-embed]):not(.hidden)").forEach(function (c) { requestEmbed(c, false); });
+  updateSectionEmbed(s);
 }
 
 // ---- 投稿のカード。頭の行から、ほかの見方のその章へ飛べる（いま居る見方へのリンクは出さない）
+var REF_LABEL = { quoted: "引用", replied_to: "返信先", retweeted: "リポスト" };
 function card(p, tab) {
-  var c = el("article", { class: "card", "data-key": p.key });
+  var c = el("article", { class: "card", "data-id": p.id, "data-key": p.key });
   var head = el("div", { class: "head" });
   head.appendChild(el("span", {}, p.date + " ・ " + p.src));
   if (tab !== "authors") head.appendChild(p.ah ? el("a", { href: href("authors", p.ah), title: p.an || "" }, "@" + p.ah) : el("span", {}, "投稿者不明"));
   if (tab !== "categories") head.appendChild(el("a", { href: href("categories", p.cat) }, p.cat));
   c.appendChild(head);
-  var box = el("div", { class: "tweet", "data-id": p.id });
-  var fb = el("div", { class: "fallback" });
-  fb.appendChild(el("div", {}, p.tx));
-  fb.appendChild(el("a", { href: statusUrl(p.id), target: "_blank", rel: "noopener noreferrer" }, "X で開く"));
-  box.appendChild(fb);
-  c.appendChild(box);
-  io.observe(box);
+  var body = el("div", { class: "body" });
+  if (p.an) {
+    var au = el("div", { class: "author" }, p.an);
+    au.appendChild(el("span", {}, "@" + p.ah));
+    body.appendChild(au);
+  }
+  var tx = p.tx || (p.ref || p.art ? "" : "（本文なし）");
+  if (tx) {
+    var long = tx.length > 300 || tx.split("\\n").length > 8;
+    var text = el("div", { class: "text" + (long ? " clamp" : "") }, tx);
+    body.appendChild(text);
+    if (long) {
+      var more = el("button", { type: "button", class: "more" }, "続きを読む");
+      more.addEventListener("click", function () { more.textContent = text.classList.toggle("clamp") ? "続きを読む" : "たたむ"; });
+      body.appendChild(more);
+    }
+  }
+  if (p.art) body.appendChild(el("div", { class: "ref" }, "記事: " + p.art));
+  if (p.ref) body.appendChild(el("blockquote", { class: "ref" }, (REF_LABEL[p.ref.type] || p.ref.type) + ": " + p.ref.text));
+  if (p.urls.length > 0) {
+    var links = el("div", { class: "links" });
+    p.urls.forEach(function (u) { links.appendChild(el("a", { href: u, target: "_blank", rel: "noopener noreferrer", title: u }, u.replace(/^https?:\\/\\//, ""))); });
+    body.appendChild(links);
+  }
+  c.appendChild(body);
+  var foot = el("div", { class: "foot" });
+  foot.appendChild(el("a", { href: statusUrl(p.id), target: "_blank", rel: "noopener noreferrer" }, "X で開く"));
+  var btn = el("button", { type: "button", class: "embed-btn" }, "埋め込みで見る");
+  btn.addEventListener("click", function () { requestEmbed(c, true); });
+  foot.appendChild(btn);
+  c.appendChild(foot);
+  c.appendChild(el("div", { class: "embed" }));
   return c;
 }
 function section(t, id, arg, title, count, ids, extra) {
@@ -274,6 +359,9 @@ function section(t, id, arg, title, count, ids, extra) {
   h.appendChild(el("span", {}, title));
   if (extra) extra.forEach(function (x) { h.appendChild(x); });
   h.appendChild(el("span", { class: "count" }, fmt(count) + " 件"));
+  var all = el("button", { type: "button", class: "embed-all" }, "この章を埋め込む");
+  all.addEventListener("click", function () { embedSection(s); });
+  h.appendChild(all);
   s.appendChild(h);
   var grid = el("div", { class: "tweets" });
   ids.forEach(function (pid) { var c = card(P[pid], t.name); t.cards.push(c); grid.appendChild(c); });
@@ -471,23 +559,8 @@ var cal = (function () {
     state.selected = p.id;
     ui.table.querySelectorAll(".ev.on").forEach(function (x) { x.classList.remove("on"); });
     ev.classList.add("on");
-    var panel = ui.panel;
-    panel.textContent = "";
-    var meta = el("div", { class: "meta" });
-    meta.appendChild(el("span", {}, p.date + " " + pad(p.cal.h) + ":" + pad(p.cal.m) + " ・ " + p.src));
-    meta.appendChild(p.ah ? el("a", { href: href("authors", p.ah), title: p.an || "" }, "@" + p.ah) : el("span", {}, "投稿者不明"));
-    meta.appendChild(el("a", { href: href("categories", p.cat) }, p.cat));
-    meta.appendChild(el("a", { href: statusUrl(p.id), target: "_blank", rel: "noopener noreferrer" }, "X で開く"));
-    panel.appendChild(meta);
-    var fallback = el("div", { class: "fallback" }, p.tx);
-    panel.appendChild(fallback);
-    // 埋め込みが読めたら本文の先頭は消す。消された投稿は読めないので残る
-    twttr.ready(function (t) {
-      if (state.selected !== p.id) return;
-      t.widgets.createTweet(p.id, panel, { theme: theme, lang: "ja", dnt: true, conversation: "none" }).then(function (w) {
-        if (w && state.selected === p.id) fallback.remove();
-      });
-    });
+    ui.panel.textContent = "";
+    ui.panel.appendChild(card(p, "calendar"));
   }
   return {
     build: build,
