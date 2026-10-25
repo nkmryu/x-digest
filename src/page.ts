@@ -110,7 +110,7 @@ button:disabled { opacity: 0.4; cursor: default; }
 .count { color: var(--muted); font-size: 12px; font-weight: normal; }
 
 /* 上の帯。どの見方からも、ほかの見方へ 1 回で移れる */
-.top { position: sticky; top: 0; z-index: 10; min-height: var(--top); display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 8px 16px; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.top { position: sticky; top: 0; z-index: 10; min-height: var(--top); display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 8px 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
 .brand { font-weight: 700; font-size: 15px; color: var(--text); text-decoration: none; white-space: nowrap; }
 .tabs { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: color-mix(in srgb, var(--text) 7%, transparent); }
 .tabs a { padding: 5px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 600; white-space: nowrap; }
@@ -147,7 +147,9 @@ section { background: var(--panel); border: 1px solid var(--line); border-radius
 
 /* 投稿のカード。手元の本文で組み、X の埋め込みはボタンで読む。頭の行は埋め込みの後も残す */
 .tweets { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; align-items: start; }
-.card { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px 12px; min-width: 0; }
+.card { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px 12px; min-width: 0; content-visibility: auto; contain-intrinsic-size: auto 240px; }
+.card .unembed { display: none; }
+.card.embedded .unembed { display: inline; }
 .card .head { display: flex; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
 .card .head > * + *::before { content: "・"; margin: 0 5px; color: var(--muted); }
 .card .head a { color: var(--accent); text-decoration: none; }
@@ -296,17 +298,29 @@ function startEmbed(c) {
     });
   });
 }
+// 埋め込み（iframe）はスクロールを重くするので、カードに戻せるようにする
+function unembed(c) {
+  if (c.classList.contains("embedding")) return;
+  c.querySelector(".embed").textContent = "";
+  delete c.dataset.embed;
+  c.classList.remove("embedded");
+  setEmbedButton(c, "埋め込みで見る", false);
+  var s = c.closest("section");
+  if (s) updateSectionEmbed(s);
+}
 function updateSectionEmbed(s) {
   var b = s.querySelector(".embed-all");
   if (!b) return;
   var busy = s.querySelectorAll(".card.embedding").length;
   var left = s.querySelectorAll(".card:not([data-embed]):not(.hidden)").length;
   if (busy > 0) { b.disabled = true; b.textContent = "埋め込み中 " + fmt(busy) + " 件"; }
-  else if (left === 0) { b.disabled = true; b.textContent = "埋め込んだ"; }
+  else if (left === 0) { b.disabled = false; b.textContent = "カードに戻す"; }
   else { b.disabled = false; b.textContent = "この章を埋め込む"; }
 }
-function embedSection(s) {
-  s.querySelectorAll(".card:not([data-embed]):not(.hidden)").forEach(function (c) { requestEmbed(c, false); });
+function toggleSectionEmbed(s) {
+  var left = s.querySelectorAll(".card:not([data-embed]):not(.hidden)");
+  if (left.length > 0) left.forEach(function (c) { requestEmbed(c, false); });
+  else s.querySelectorAll(".card[data-embed]").forEach(unembed);
   updateSectionEmbed(s);
 }
 
@@ -318,6 +332,9 @@ function card(p, tab) {
   head.appendChild(el("span", {}, p.date + " ・ " + p.src));
   if (tab !== "authors") head.appendChild(p.ah ? el("a", { href: href("authors", p.ah), title: p.an || "" }, "@" + p.ah) : el("span", {}, "投稿者不明"));
   if (tab !== "categories") head.appendChild(el("a", { href: href("categories", p.cat) }, p.cat));
+  var back = el("a", { class: "unembed", href: "#", role: "button" }, "カードに戻す");
+  back.addEventListener("click", function (e) { e.preventDefault(); unembed(c); });
+  head.appendChild(back);
   c.appendChild(head);
   var body = el("div", { class: "body" });
   if (p.an) {
@@ -360,7 +377,7 @@ function section(t, id, arg, title, count, ids, extra) {
   if (extra) extra.forEach(function (x) { h.appendChild(x); });
   h.appendChild(el("span", { class: "count" }, fmt(count) + " 件"));
   var all = el("button", { type: "button", class: "embed-all" }, "この章を埋め込む");
-  all.addEventListener("click", function () { embedSection(s); });
+  all.addEventListener("click", function () { toggleSectionEmbed(s); });
   h.appendChild(all);
   s.appendChild(h);
   var grid = el("div", { class: "tweets" });
